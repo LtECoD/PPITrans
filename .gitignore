@@ -1,0 +1,10 @@
+data/hpidb/HPIDB/*
+data/hvidb/HVIDB/*
+data/hpidb/embeddings/*
+data/hvidb/embeddings/*
+data/dscript/data/*
+data/dscript/processed/*
+save/hpidb/*
+save/hvidb/*
+save/dscript/*
+__pycache__/
