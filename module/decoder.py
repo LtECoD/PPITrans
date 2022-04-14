@@ -18,7 +18,6 @@ class ContactMapInsector:
         raise NotImplementedError
 
 
-
 class BaselineDecoder(BaseFairseqModel):
     def __init__(self, args):
         super().__init__()
@@ -27,7 +26,7 @@ class BaselineDecoder(BaseFairseqModel):
     def get_pro_rep(self, encs, lens):
         """获取蛋白质序列的表示，使用AVGPool，将编码压缩成1"""
         padding_mask = get_padding_mask(lens, max_len=encs.size(1))
-        rep = encs * (1.-padding_mask.float()).unsqueeze(-1)
+        rep = encs * (1.-padding_mask.type_as(encs)).unsqueeze(-1)
         rep = torch.sum(rep, dim=1)
         rep = torch.div(rep, lens.unsqueeze(-1))
         return rep

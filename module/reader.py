@@ -2,15 +2,65 @@ import os
 import torch
 import random
 import numpy as np
-
+from collections import Counter
 from fairseq.data import FairseqDataset
+
+class EmbBuffer:
+    def __init__(self, _size, emb_sub_dir, samples, max_len, emb_dim, initiate=True):
+        self.buffer_size = _size
+        self.buffer = []
+        self.pro_map_idx = {}
+    
+        self.emb_sub_dir = emb_sub_dir
+        self.max_len = max_len
+        self.emb_dim = emb_dim
+
+        # 获取最常见的蛋白质
+        pro_list = []
+        for sample in samples:
+            pro_list.append(sample[0])
+            pro_list.append(sample[1])
+        pro_counter = Counter(pro_list)
+        self.pros =[p[0] for p in pro_counter.most_common(_size)]
+
+        if initiate:
+            self.init_buffer()
+
+    def init_buffer(self):
+        # 数据预取
+        for idx, pro in enumerate(self.pros):
+            emb = self.load(pro)
+
+            self.buffer.append(emb)
+            assert len(self.buffer) == idx + 1
+            self.pro_map_idx[pro] = idx
+            if (idx+1) % 100 ==0:
+                print(idx+1)
+
+    def load(self, pro):
+        emb = np.load(os.path.join(self.emb_sub_dir, pro+".npy"))
+        return emb
+
+    def get(self, pro):
+        if pro in self.pro_map_idx:
+            idx = self.pro_map_idx[pro]
+            emb = self.buffer[idx]
+        else:
+            emb = self.load(pro)
+            if pro in self.pros:
+                self.buffer.append(emb)
+                self.pro_map_idx[pro] = len(self.buffer) - 1
+                assert len(self.buffer) <= self.buffer_size
+
+        pro_len = emb.shape[0]
+        padded_emb = np.zeros((self.max_len, self.emb_dim))
+        padded_emb[:pro_len, :] = emb
+        return padded_emb, pro_len
 
 
 class PPIDataset(FairseqDataset):
-    def __init__(self, split, args):
+    def __init__(self, split, buffer_size, args):
         self.split = split
-        self.max_len = args.max_len
-        self.emb_dim = args.emb_dim
 
         # 读取序列文件
         with open(os.path.join(args.data_dir, "seqs", split+".fasta"), "r") as f:
@@ -19,28 +69,23 @@ class PPIDataset(FairseqDataset):
         # 读取样本文件
         with open(os.path.join(args.data_dir, "pairs", split + ".tsv"), "r") as f:
             self.samples = [line.strip().split("\t") for line in f.readlines()]
-        # 嵌入文件夹
-        self.emb_sub_dir = os.path.join(args.data_dir, "embs", split)
         # 数据集中的unique蛋白质
         self.proteins = set([sample[0] for sample in self.samples]) | set([sample[1] for sample in self.samples])
         # 编码文件buffer
-        self.embs_buffer = {}
-        self.embs_buffer_size = 10000
-       
+        self.embs_buffer = EmbBuffer(
+            _size=buffer_size, 
+            emb_sub_dir=os.path.join(args.data_dir, "embs", split),
+            samples=self.samples,
+            max_len=args.max_len,
+            emb_dim=args.emb_dim,
+            initiate=False)
+
         # 统计长度信息等
         self.count_statistics()
 
-    def get_embeds(self, pro):
-        if pro in self.embs_buffer:
-            emb = self.embs_buffer[pro]
-        else:
-            emb = np.load(os.path.join(self.emb_sub_dir, pro+".npy"))
-            if len(self.embs_buffer) >= self.embs_buffer_size:
-                # 随机丢弃一个
-                droped_pro = random.choice(list(self.embs_buffer.keys()))
-                self.embs_buffer.pop(droped_pro)
-            self.embs_buffer[pro] = emb
-        return emb
+    def get_embed(self, pro):
+        emb, pro_len = self.embs_buffer.get(pro)
+        return emb, pro_len
 
     def count_statistics(self):
         num_of_unique_proteins = len(self.proteins)
@@ -75,16 +120,10 @@ class PPIDataset(FairseqDataset):
         fpro_seq = self.acid_seqs[fpro]
         spro_seq = self.acid_seqs[spro]
 
-        fpro_emb = self.get_embeds(fpro)
-        spro_emb = self.get_embeds(spro)
-
-        assert len(fpro_seq) == len(fpro_emb)
-        assert len(spro_seq) == len(spro_emb)
-        #! padding到最大长度，后续为提升效率可改成padding到批最大长度
-        fpro_emb = np.concatenate(
-            (fpro_emb, np.zeros((self.max_len-len(fpro_emb), self.emb_dim))), axis=0)
-        spro_emb = np.concatenate(
-            (spro_emb, np.zeros((self.max_len-len(spro_emb), self.emb_dim))), axis=0)
+        fpro_emb, fpro_len = self.get_embed(fpro)
+        spro_emb, spro_len = self.get_embed(spro)
+        assert fpro_len == len(fpro_seq)
+        assert spro_len == len(spro_seq)
 
         sample_dict = {
             "index": index,
@@ -92,6 +131,8 @@ class PPIDataset(FairseqDataset):
             "spro": spro,
             "femb": fpro_emb,
             "semb": spro_emb,
+            'fprolen': fpro_len,
+            'sprolen': spro_len,
             "fseq": fpro_seq,
             "sseq": spro_seq,
             "label": label}
@@ -108,13 +149,10 @@ class PPIDataset(FairseqDataset):
 
     def collater(self, samples):
         labels = torch.LongTensor([int(sample['label']) for sample in samples])
-        fst_embs = [sample["femb"] for sample in samples]
-        sec_embs = [sample["semb"] for sample in samples]
-        fst_lens = [len(emb) for emb in fst_embs]
-        sec_lens = [len(emb) for emb in sec_embs]
-
-        fst_embs = np.array(fst_embs)
-        sec_embs = np.array(sec_embs)
+        fst_embs = np.array([sample["femb"] for sample in samples])
+        sec_embs = np.array([sample["semb"] for sample in samples])
+        fst_lens = [sample["fprolen"] for sample in samples]
+        sec_lens = [sample["sprolen"] for sample in samples]
 
         model_inputs = {
             "fst_embs": torch.Tensor(fst_embs),
@@ -122,12 +160,11 @@ class PPIDataset(FairseqDataset):
             "sec_embs": torch.Tensor(sec_embs),
             "sec_lens": torch.LongTensor(sec_lens)}
 
-        indexs = torch.LongTensor([sample['index'] for sample in samples])
         fpros = [sample["fpro"] for sample in samples]
         spros = [sample["spro"] for sample in samples]
         fseqs = [sample["fseq"] for sample in samples]
         sseqs = [sample["sseq"] for sample in samples]
-        data_info = {"indexs": indexs, "fpros": fpros, \
+        data_info = {"fpros": fpros, \
             "spros": spros, "fseqs": fseqs, "sseqs": sseqs}
         return {
             "inputs": model_inputs,

@@ -40,11 +40,11 @@ class PPICriterion(FairseqCriterion):
         if torch.sum(preds) > 0:
             pre = torch.sum(preds[labels.bool()]) / torch.sum(preds)
         else:
-            pre = 0
+            pre = 1.
         if torch.sum(labels) > 0:
             rec = torch.sum(preds[labels.bool()]) / torch.sum(labels)
         else:
-            rec = 0
+            rec = 1.
         metrics = {"acc": acc, "pre": pre, "rec": rec}
 
         return loss, metrics

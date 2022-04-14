@@ -1,4 +1,4 @@
-import os
+import torch
 import logging
 from fairseq.tasks import register_task, LegacyFairseqTask
 
@@ -13,7 +13,6 @@ class PPITask(LegacyFairseqTask):
     @staticmethod
     def add_args(parser):
         # data reader arguments
-        #! baseline模型中需要设置为true，val和test数据集中默认带有负样本
         parser.add_argument("--data-dir", type=str)
         parser.add_argument("--max-len", type=int)
     
@@ -27,7 +26,11 @@ class PPITask(LegacyFairseqTask):
         return cls(args)
     
     def load_dataset(self, split, combine=False, **kwargs):
-        self.datasets[split] = PPIDataset(split, self.args)
+        if 'train' in split:
+            buffer_size = 8000
+        else:
+            buffer_size = 2000
+        self.datasets[split] = PPIDataset(split, buffer_size, self.args)
     
     def reduce_metrics(self, logging_outputs, criterion):
         criterion.__class__.reduce_metrics(logging_outputs)
