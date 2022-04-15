@@ -10,8 +10,8 @@ fairseq-train \
     \
     --optimizer adam \
     --lr 3e-5 \
-    --batch-size 64 \
-    --max-epoch 10 \
+    --batch-size 32 \
+    --max-epoch 8 \
     \
     --data-dir ./data/${DATASET}/processed \
     --train-subset human_train \
@@ -29,4 +29,4 @@ fairseq-train \
     --kernel-size 3 \
     --trans-layers 6
 
-# batch-size 32时精度和召回率还可以，64时精度不太行
+# batch-size 32时精度和召回率还可以，64时精度不太行, batch-size 对性能的影响有点严重
