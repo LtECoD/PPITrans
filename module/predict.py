@@ -30,16 +30,8 @@ class Predictor:
             lines.append(line)
         return lines
 
-def main(args):
-    assert args.path is not None, "--path required for generation!"
 
-    os.makedirs(args.results_path, exist_ok=True)
-    output_path = os.path.join(args.results_path, "{}.txt".format(args.gen_subset))
-    with open(output_path, "w", buffering=1, encoding="utf-8") as h:
-        return _main(args, h)
-
-
-def _main(args, output_file):
+def _main(args):
     logging.basicConfig(
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -59,7 +51,6 @@ def _main(args, output_file):
     # Load dataset splits
     task = tasks.setup_task(args)
     task.load_dataset(args.gen_subset)
-
    
     # Load ensemble
     logger.info("loading model(s) from {}".format(args.path))
@@ -101,15 +92,16 @@ def _main(args, output_file):
     for sample in progress:
         sample = utils.move_to_cuda(sample) if use_cuda else sample
         out_lines.extend(predictor.predict(sample))
-    output_file.writelines(out_lines)
-
-
-def cli_main():
-    parser = options.get_generation_parser()
-    options.add_model_args(parser)
-    args = options.parse_args_and_arch(parser)
-    main(args)
+    
+    output_path = os.path.join(args.results_path, "{}.txt".format(args.gen_subset))
+    with open(output_path, "w", buffering=1, encoding="utf-8") as f:
+        f.writelines(out_lines)
 
 
 if __name__ == "__main__":
-    cli_main()
+    parser = options.get_generation_parser()
+    options.add_model_args(parser)
+    args = options.parse_args_and_arch(parser)
+    assert args.path is not None, "--path required for generation!"
+    os.makedirs(args.results_path, exist_ok=True)
+    _main(args)

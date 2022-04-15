@@ -1,4 +1,3 @@
-import torch
 import logging
 from fairseq.tasks import register_task, LegacyFairseqTask
 
@@ -29,7 +28,7 @@ class PPITask(LegacyFairseqTask):
         if 'train' in split:
             buffer_size = 8000
         else:
-            buffer_size = 0
+            buffer_size = 5000
         self.datasets[split] = PPIDataset(split, buffer_size, self.args)
     
     def reduce_metrics(self, logging_outputs, criterion):

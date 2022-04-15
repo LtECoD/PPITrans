@@ -1,4 +1,3 @@
-from pydoc import getpager
 import torch
 import torch.nn as nn
 from fairseq.models import BaseFairseqModel
@@ -6,7 +5,26 @@ from fairseq.models import BaseFairseqModel
 from module.utils import get_padding_mask
 
 
-class Encoder(BaseFairseqModel):
+class SimpleEncoder(BaseFairseqModel):
+    """不使用cnn和transformer，只进行维度的转换"""
+    def __init__(self, args):
+        super().__init__()
+        self.linear = nn.Linear(args.emb_dim, args.hid_dim)
+    
+    def forward(self, fst_embs, fst_lens, sec_embs, sec_lens):
+        fst_encs = self.linear(fst_embs)
+        sec_encs = self.linear(sec_embs)
+        return fst_encs, fst_lens, sec_encs, sec_lens
+        
+
+class BaselineEncoder(BaseFairseqModel):
+
+    @staticmethod
+    def add_args(parser):
+        parser.add_argument("--cnn-layers", type=int)
+        parser.add_argument("--kernel-size", type=int)
+        parser.add_argument("--trans-layers", type=int)
+
     def __init__(self, args):
         super().__init__()
         self.kernel_size = args.kernel_size
