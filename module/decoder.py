@@ -32,8 +32,10 @@ class BaselineDecoder(BaseFairseqModel):
         return rep
 
     def forward(self, fst_encs, fst_lens, sec_encs, sec_lens):
-        fst_rep = self.get_pro_rep(fst_encs, fst_lens)      # B x D
-        sec_rep = self.get_pro_rep(sec_encs, sec_lens)      # B x D
-        rep = fst_rep * sec_rep
-        logits = self.projector(rep)
-        return {"logits": logits}
+        fst_reps = self.get_pro_rep(fst_encs, fst_lens)      # B x D
+        sec_reps = self.get_pro_rep(sec_encs, sec_lens)      # B x D
+        #! 由原来的乘改为了加，初步的实验效果貌似不如相乘，先加上对比损失，如果效果还不行
+        #! 则改回相加
+        reps = fst_reps * sec_reps
+        logits = self.projector(reps)
+        return {"logits": logits, "fst_reps": fst_reps, 'sec_reps': sec_reps, "reps": reps}

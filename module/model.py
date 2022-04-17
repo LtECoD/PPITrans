@@ -19,6 +19,9 @@ class BaseModel(BaseFairseqModel):
         parser.add_argument("--dropout", type=float)
         parser.add_argument("--emb-dim", type=int)
         parser.add_argument("--hid-dim", type=int)
+        parser.add_argument("--cnn-layers", type=int)
+        parser.add_argument("--kernel-size", type=int)
+        parser.add_argument("--trans-layers", type=int)
 
     def forward(self, fst_embs, fst_lens, sec_embs, sec_lens):
         fst_encs, fst_lens, sec_encs, sec_lens = self.encoder(

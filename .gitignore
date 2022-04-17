@@ -7,4 +7,5 @@ data/dscript/processed/*
 save/hpidb/*
 save/hvidb/*
 save/dscript/*
+*.npy
 __pycache__/

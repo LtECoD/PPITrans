@@ -1,6 +1,7 @@
 #! modified fairseq_cli.generate
 import logging
 import os
+import pickle
 
 import numpy as np
 import torch
@@ -16,10 +17,13 @@ class Predictor:
         infos = sample['infos']
         inputs = sample['inputs']
         labels = sample['labels']
+        rep_dict = {}                   # 存储测试集中蛋白质的表示，以供后续分析
         with torch.no_grad():
             out = self.model(**inputs)
             probs = torch.softmax(out['logits'], dim=-1).cpu().tolist()
-        
+            fst_reps = out['fst_reps']
+            sec_reps = out['sec_reps']
+
         fpros = infos['fpros']
         spros = infos['spros']
         lines = []
@@ -27,8 +31,10 @@ class Predictor:
             line = "{}\t{}\t{}\t{}\t{}\n".format(
                 fpros[idx], spros[idx], str(int(labels[idx])), 
                 str(round(probs[idx][0], 4)), str(round(probs[idx][1], 4)))
+            rep_dict[fpros[idx]] = fst_reps[idx].cpu().numpy()
+            rep_dict[spros[idx]] = sec_reps[idx].cpu().numpy()
             lines.append(line)
-        return lines
+        return lines, rep_dict
 
 
 def _main(args):
@@ -89,19 +95,27 @@ def _main(args):
     )
     predictor = Predictor(model)
     out_lines = []
+    reps = {}
     for sample in progress:
         sample = utils.move_to_cuda(sample) if use_cuda else sample
-        out_lines.extend(predictor.predict(sample))
+        batch_out, batch_rep = predictor.predict(sample)
+        out_lines.extend(batch_out)
+        reps.update(batch_rep)
     
     output_path = os.path.join(args.results_path, "{}.txt".format(args.gen_subset))
     with open(output_path, "w", buffering=1, encoding="utf-8") as f:
         f.writelines(out_lines)
 
+    # 将蛋白质的表示记录到文件
+    np.save(os.path.join(args.rep_path, "{}.npy".format(args.gen_subset)), reps, allow_pickle=True)
+
 
 if __name__ == "__main__":
     parser = options.get_generation_parser()
+    parser.add_argument('--rep-path', type=str, help="dir to store representations")
     options.add_model_args(parser)
     args = options.parse_args_and_arch(parser)
     assert args.path is not None, "--path required for generation!"
     os.makedirs(args.results_path, exist_ok=True)
+    os.makedirs(args.rep_path, exist_ok=True)
     _main(args)

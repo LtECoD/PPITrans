@@ -2,7 +2,7 @@
 
 DATASET=dscript
 ARCH=baseline
-CRITEION=ppi_crossentropy
+CRITEION=ppi_contrastive
 
 fairseq-train \
     --user-dir module \
@@ -22,6 +22,7 @@ fairseq-train \
     --task ppi \
     --arch ${ARCH} \
     --criterion ${CRITEION} \
+    --gamma 0.2 \
     \
     --dropout 0.2 \
     --emb-dim 1024 \

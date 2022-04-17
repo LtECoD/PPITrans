@@ -1,8 +1,8 @@
 #! /bin/bash
 
 DATASET=dscript
-ARCH=simplebaseline
-CRITEION=ppi_crossentropy
+ARCH=baseline
+CRITEION=ppi_contrastive
 
 # 'mouse_test' 'fly_test' 'worm_test' 'yeast_test' 
 TEST_SET=('ecoli_test' 'human_test')

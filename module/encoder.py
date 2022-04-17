@@ -18,13 +18,6 @@ class SimpleEncoder(BaseFairseqModel):
         
 
 class BaselineEncoder(BaseFairseqModel):
-
-    @staticmethod
-    def add_args(parser):
-        parser.add_argument("--cnn-layers", type=int)
-        parser.add_argument("--kernel-size", type=int)
-        parser.add_argument("--trans-layers", type=int)
-
     def __init__(self, args):
         super().__init__()
         self.kernel_size = args.kernel_size

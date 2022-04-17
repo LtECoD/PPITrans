@@ -2,16 +2,17 @@
 
 DATASET=dscript
 ARCH=simplebaseline
+CRITEION=ppi_crossentropy
 
 fairseq-train \
     --user-dir module \
-    --save-dir ./save/${DATASET}/${ARCH} \
+    --save-dir ./save/${DATASET}/${ARCH}-${CRITEION} \
     --seed 100 \
     \
     --optimizer adam \
     --lr 3e-5 \
     --batch-size 32 \
-    --max-epoch 5 \
+    --max-epoch 3 \
     \
     --data-dir ./data/${DATASET}/processed \
     --train-subset human_train \
@@ -20,7 +21,7 @@ fairseq-train \
     \
     --task ppi \
     --arch ${ARCH} \
-    --criterion ppi_criterion \
+    --criterion ${CRITEION} \
     \
     --dropout 0.2 \
     --emb-dim 1024 \
