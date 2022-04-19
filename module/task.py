@@ -36,5 +36,4 @@ class PPITask(LegacyFairseqTask):
     
     def begin_epoch(self, epoch, model):
         for key in self.datasets:
-            if "train" in key:
-                self.datasets[key].shuffle()
+            self.datasets[key].shuffle()

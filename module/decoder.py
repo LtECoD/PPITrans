@@ -1,9 +1,9 @@
 import torch
-import torch
 import torch.nn as nn
 from fairseq.models import BaseFairseqModel
 
 from module.utils import get_padding_mask
+from module.utils import get_pro_rep
 
 
 class ContactMapInsector:
@@ -23,17 +23,9 @@ class BaselineDecoder(BaseFairseqModel):
         super().__init__()
         self.projector = nn.Linear(args.hid_dim, 2)
 
-    def get_pro_rep(self, encs, lens):
-        """获取蛋白质序列的表示，使用AVGPool，将编码压缩成1"""
-        padding_mask = get_padding_mask(lens, max_len=encs.size(1))
-        rep = encs * (1.-padding_mask.type_as(encs)).unsqueeze(-1)
-        rep = torch.sum(rep, dim=1)
-        rep = torch.div(rep, lens.unsqueeze(-1))
-        return rep
-
     def forward(self, fst_encs, fst_lens, sec_encs, sec_lens):
-        fst_reps = self.get_pro_rep(fst_encs, fst_lens)      # B x D
-        sec_reps = self.get_pro_rep(sec_encs, sec_lens)      # B x D
+        fst_reps = get_pro_rep(fst_encs, fst_lens)      # B x D
+        sec_reps = get_pro_rep(sec_encs, sec_lens)      # B x D
         #! 由原来的乘改为了加，初步的实验效果貌似不如相乘，先加上对比损失，如果效果还不行
         #! 则改回相加
         reps = fst_reps * sec_reps

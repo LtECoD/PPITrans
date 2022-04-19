@@ -30,6 +30,15 @@ def get_padding_mask(seq_len, max_len):
     return padding_mask     # B x L
 
 
+def get_pro_rep(encs, lens):
+    """获取蛋白质序列的表示，使用AVGPool，将编码压缩成1"""
+    padding_mask = get_padding_mask(lens, max_len=encs.size(1))
+    rep = encs * (1.-padding_mask.type_as(encs)).unsqueeze(-1)
+    rep = torch.sum(rep, dim=1)
+    rep = torch.div(rep, lens.unsqueeze(-1))
+    return rep
+
+
 # def load_model(model, save_dir):
 #     #! todo
 #     pass

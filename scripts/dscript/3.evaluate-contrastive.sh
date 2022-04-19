@@ -1,11 +1,10 @@
 #! /bin/bash
 
 DATASET=dscript
-ARCH=baseline
-CRITEION=ppi_contrastive
+ARCH=contrastiveppi
+CRITEION=ppi_crossentropy
 
-# 'mouse_test' 'fly_test' 'worm_test' 'yeast_test' 
-TEST_SET=('ecoli_test' 'human_test')
+TEST_SET=('ecoli_test' 'mouse_test' 'fly_test' 'worm_test' 'yeast_test' 'human_test')
 
 for split in ${TEST_SET[*]}; do
     python module/evaluate.py \
