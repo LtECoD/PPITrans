@@ -19,7 +19,7 @@ class Predictor:
         labels = sample['labels']
         rep_dict = {}                   # 存储测试集中蛋白质的表示，以供后续分析
         with torch.no_grad():
-            out = self.model(**inputs)
+            out = self.model(inputs)
             probs = torch.softmax(out['logits'], dim=-1).cpu().tolist()
             fst_reps = out['fst_reps']
             sec_reps = out['sec_reps']

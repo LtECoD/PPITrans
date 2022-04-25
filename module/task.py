@@ -1,7 +1,7 @@
 import logging
 from fairseq.tasks import register_task, LegacyFairseqTask
 
-from module.reader import PPIDataset
+from module.reader import PPIDataset, OriPPIDataset
 from module.utils import setup_seed
 
 logger = logging.getLogger(__name__)
@@ -23,13 +23,10 @@ class PPITask(LegacyFairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         return cls(args)
-    
+
     def load_dataset(self, split, combine=False, **kwargs):
-        if 'train' in split:
-            buffer_size = 0
-        else:
-            buffer_size = 0
-        self.datasets[split] = PPIDataset(split, buffer_size, self.args)
+        dataset = OriPPIDataset if self.args.wo_ppm else PPIDataset
+        self.datasets[split] = dataset(split, self.args)
     
     def reduce_metrics(self, logging_outputs, criterion):
         criterion.__class__.reduce_metrics(logging_outputs)

@@ -5,7 +5,7 @@ from fairseq.models import BaseFairseqModel
 from module.utils import get_padding_mask
 
 
-class SimpleEncoder(BaseFairseqModel):
+class NaiveEncoder(BaseFairseqModel):
     """不使用cnn和transformer，只进行维度的转换"""
     def __init__(self, args):
         super().__init__()
@@ -15,9 +15,21 @@ class SimpleEncoder(BaseFairseqModel):
         fst_encs = self.linear(fst_embs)
         sec_encs = self.linear(sec_embs)
         return fst_encs, fst_lens, sec_encs, sec_lens
-        
 
-class BaselineEncoder(BaseFairseqModel):
+
+class NaiveFullEncoder(NaiveEncoder):
+    def __init__(self, args):
+        super().__init__(args)
+        self.embeder = nn.Embedding(num_embeddings=22, \
+            embedding_dim=args.emb_dim, padding_idx=0)
+    
+    def forward(self, fst_seqs, fst_lens, sec_seqs, sec_lens):
+        fst_embs = self.embeder(fst_seqs)
+        sec_embs = self.embeder(sec_seqs)
+        return super().forward(fst_embs, fst_lens, sec_embs, sec_lens)
+
+
+class Encoder(BaseFairseqModel):
     def __init__(self, args):
         super().__init__()
         self.kernel_size = args.kernel_size
@@ -43,6 +55,11 @@ class BaselineEncoder(BaseFairseqModel):
                 nn.BatchNorm1d(num_features=args.hid_dim)) \
             for idx in range(args.cnn_layers-1)]
         self.cnn_blocks = nn.Sequential(init_cnn_block, *cnn_blocks)
+        # 如果不需要缩短长度，则删除pooling层
+        if args.wo_pool:
+            for idx in range(args.cnn_layers):
+                del(self.cnn_blocks[idx][-2])
+
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(d_model=args.hid_dim, nhead=4, \
                 dim_feedforward=args.hid_dim*4, dropout=args.dropout, batch_first=True), 
@@ -77,3 +94,15 @@ class BaselineEncoder(BaseFairseqModel):
         fst_encs = self.transformer(fst_cnn_encs, src_key_padding_mask=fst_padding_mask)
         sec_encs = self.transformer(sec_cnn_encs, src_key_padding_mask=sec_padding_mask)
         return fst_encs, fst_lens, sec_encs, sec_lens
+
+
+class FullEncoder(Encoder):
+    def __init__(self, args):
+        super().__init__(args)
+        self.embeder = nn.Embedding(num_embeddings=22, \
+            embedding_dim=args.emb_dim, padding_idx=0)
+
+    def forward(self, fst_seqs, fst_lens, sec_seqs, sec_lens):
+        fst_embs = self.embeder(fst_seqs)
+        sec_embs = self.embeder(sec_seqs)
+        return super().forward(fst_embs, fst_lens, sec_embs, sec_lens)
