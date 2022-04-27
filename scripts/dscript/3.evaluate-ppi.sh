@@ -12,18 +12,18 @@ for split in ${TEST_SET[*]}; do
         --metric_dir ./results/${DATASET}/${ARCH}-woppm-wopool/metric \
         --split ${split}
 
-    python module/evaluate.py \
-        --result_dir ./results/${DATASET}/${ARCH}-woppm/prediction  \
-        --metric_dir ./results/${DATASET}/${ARCH}-woppm/metric \
-        --split ${split}
+    # python module/evaluate.py \
+    #     --result_dir ./results/${DATASET}/${ARCH}-woppm/prediction  \
+    #     --metric_dir ./results/${DATASET}/${ARCH}-woppm/metric \
+    #     --split ${split}
 
     python module/evaluate.py \
         --result_dir ./results/${DATASET}/${ARCH}-wopool/prediction  \
         --metric_dir ./results/${DATASET}/${ARCH}-wopool/metric \
         --split ${split}
 
-    python module/evaluate.py \
-        --result_dir ./results/${DATASET}/${ARCH}/prediction  \
-        --metric_dir ./results/${DATASET}/${ARCH}/metric \
-        --split ${split}
+    # python module/evaluate.py \
+    #     --result_dir ./results/${DATASET}/${ARCH}/prediction  \
+    #     --metric_dir ./results/${DATASET}/${ARCH}/metric \
+    #     --split ${split}
 done

@@ -59,7 +59,8 @@ class Encoder(BaseFairseqModel):
         if args.wo_pool:
             for idx in range(args.cnn_layers):
                 del(self.cnn_blocks[idx][-2])
-
+        self.wo_pool = args.wo_pool
+  
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(d_model=args.hid_dim, nhead=4, \
                 dim_feedforward=args.hid_dim*4, dropout=args.dropout, batch_first=True), 
@@ -78,10 +79,11 @@ class Encoder(BaseFairseqModel):
         sec_cnn_encs = self.cnn_blocks(sec_embs)
         for idx in range(len(self.cnn_blocks)):
             fst_lens = fst_lens - 2 * (self.kernel_size - 1)
-            fst_lens = torch.floor(fst_lens / 2).long()
-
             sec_lens = sec_lens - 2 * (self.kernel_size - 1)
-            sec_lens = torch.floor(sec_lens / 2).long()
+            if not self.wo_pool:
+                fst_lens = torch.floor(fst_lens / 2).long()
+                sec_lens = torch.floor(sec_lens / 2).long()
+
         assert fst_cnn_encs.size(2) == sec_cnn_encs.size(2)
 
         # 转置回来
