@@ -66,35 +66,34 @@ class Encoder(BaseFairseqModel):
                 dim_feedforward=args.hid_dim*4, dropout=args.dropout, batch_first=True), 
             num_layers=args.trans_layers)
 
+    def forward_cnn_blocks(self, embs, lens):
+        embs = embs.permute(0, 2, 1)
+
+        assert embs.size(2) <= self.max_len
+        cnn_encs = self.cnn_blocks(embs)
+        for idx in range(len(self.cnn_blocks)):
+            lens = lens - 2 * (self.kernel_size - 1)
+            if not self.wo_pool:
+                lens = torch.floor(lens / 2).long()
+
+        # 转置回来
+        cnn_encs = cnn_encs.permute(0, 2, 1)
+        return cnn_encs, lens
+
+    def forward_transformer(self, cnn_encs, lens):
+        padding_mask = get_padding_mask(lens, cnn_encs.size(1))
+        encs = self.transformer(cnn_encs, src_key_padding_mask=padding_mask)
+        return encs, lens
+
     def forward(self, fst_embs, fst_lens, sec_embs, sec_lens):
         """
             fst_embs: bsz x max_len x emb_dim
             sec_embs: bsz x max_len x emb_dim
         """
-        fst_embs = fst_embs.permute(0, 2, 1)
-        sec_embs = sec_embs.permute(0, 2, 1)
-
-        assert fst_embs.size(2) == sec_embs.size(2) == self.max_len
-        fst_cnn_encs = self.cnn_blocks(fst_embs)
-        sec_cnn_encs = self.cnn_blocks(sec_embs)
-        for idx in range(len(self.cnn_blocks)):
-            fst_lens = fst_lens - 2 * (self.kernel_size - 1)
-            sec_lens = sec_lens - 2 * (self.kernel_size - 1)
-            if not self.wo_pool:
-                fst_lens = torch.floor(fst_lens / 2).long()
-                sec_lens = torch.floor(sec_lens / 2).long()
-
-        assert fst_cnn_encs.size(2) == sec_cnn_encs.size(2)
-
-        # 转置回来
-        fst_cnn_encs = fst_cnn_encs.permute(0, 2, 1)
-        sec_cnn_encs = sec_cnn_encs.permute(0, 2, 1)
-
-        fst_padding_mask = get_padding_mask(fst_lens, fst_cnn_encs.size(1))
-        sec_padding_mask = get_padding_mask(sec_lens, fst_cnn_encs.size(1))
-
-        fst_encs = self.transformer(fst_cnn_encs, src_key_padding_mask=fst_padding_mask)
-        sec_encs = self.transformer(sec_cnn_encs, src_key_padding_mask=sec_padding_mask)
+        fst_cnn_encs, fst_lens = self.forward_cnn_blocks(fst_embs, fst_lens)
+        sec_cnn_encs, sec_lens = self.forward_cnn_blocks(sec_embs, sec_lens)
+        fst_encs, fst_lens = self.forward_cnn_blocks(fst_cnn_encs, fst_lens)
+        sec_encs, sec_lens = self.forward_cnn_blocks(sec_cnn_encs, sec_lens)
         return fst_encs, fst_lens, sec_encs, sec_lens
 
 
