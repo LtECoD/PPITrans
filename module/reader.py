@@ -5,58 +5,6 @@ import random
 import numpy as np
 from fairseq.data import FairseqDataset
 
-# class EmbBuffer:
-#     def __init__(self, _size, emb_sub_dir, samples, max_len, emb_dim, initiate=True):
-#         self.buffer_size = _size
-#         self.buffer = []
-#         self.pro_map_idx = {}
-    
-#         self.emb_sub_dir = emb_sub_dir
-#         self.max_len = max_len
-#         self.emb_dim = emb_dim
-
-#         # 获取最常见的蛋白质
-#         pro_list = []
-#         for sample in samples:
-#             pro_list.append(sample[0])
-#             pro_list.append(sample[1])
-#         pro_counter = Counter(pro_list)
-#         self.pros =[p[0] for p in pro_counter.most_common(_size)]
-
-#         if initiate:
-#             self.init_buffer()
-
-#     def init_buffer(self):
-#         # 数据预取
-#         for idx, pro in enumerate(self.pros):
-#             emb = self.load(pro)
-
-#             self.buffer.append(emb)
-#             assert len(self.buffer) == idx + 1
-#             self.pro_map_idx[pro] = idx
-#             if (idx+1) % 100 ==0:
-#                 print(idx+1)
-
-#     def load(self, pro):
-#         emb = np.load(os.path.join(self.emb_sub_dir, pro+".npy"))
-#         return emb
-
-#     def get(self, pro):
-#         if pro in self.pro_map_idx:
-#             idx = self.pro_map_idx[pro]
-#             emb = self.buffer[idx]
-#         else:
-#             emb = self.load(pro)
-#             if pro in self.pros:
-#                 self.buffer.append(emb)
-#                 self.pro_map_idx[pro] = len(self.buffer) - 1
-#                 assert len(self.buffer) <= self.buffer_size
-
-#         pro_len = emb.shape[0]
-#         padded_emb = np.zeros((self.max_len, self.emb_dim))
-#         padded_emb[:pro_len, :] = emb
-#         return padded_emb, pro_len
-
 
 class PPIDataset(FairseqDataset):
     def __init__(self, split, args):

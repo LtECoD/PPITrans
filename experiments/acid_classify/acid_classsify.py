@@ -2,7 +2,9 @@ import os
 import argparse
 import random
 import joblib
+import torch
 import numpy as np
+from statistics import stdev, mean
 from sklearn.neural_network import MLPClassifier
 
 import sys
@@ -10,7 +12,7 @@ sys.path.append(".")
 from module.model import PPIModel
 from experiments.utils import load_proteins
 from experiments.utils import organisms, acids
-from experiments.utils import load_model, forward_module
+from experiments.utils import load_model, forward_kth_translayer
 
 
 def evaluate(clf, data, label):
@@ -25,13 +27,13 @@ def evaluate(clf, data, label):
         assert len(pred) == len(label_split)
         accs.append(sum(pred==label_split) / len(pred))
 
-    return np.average(accs), max(accs), min(accs)
+    return mean(accs), stdev(accs)
 
 
 def build_data(proteins):
     """构建氨基酸分类的数据集"""
-    data = np.vstack([pro.emb for pro in proteins[orga]])
-    label = list("".join([pro.seq[:len(pro.emb)] for pro in proteins[orga]]))
+    data = np.vstack([pro.emb for pro in proteins])
+    label = list("".join([pro.seq[:len(pro.emb)] for pro in proteins]))
     label = [acids.index(l) for l in label]
     return data, label
 
@@ -42,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument("--pretrained_emb_dir", type=str, default='./data/dscript/processed/embs')
     parser.add_argument("--self_dir", type=str, default="./experiments/acid_classify")
     parser.add_argument("--protein_dir", type=str, default="./experiments/proteins")
-    parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi-wopool", help="saved model without pooling layer")
+    parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi", help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)    
     
@@ -58,21 +60,13 @@ if __name__ == '__main__':
     emb_results = {}
     for orga in organisms:
         # load embedding
-        for pro in train_proteins[orga]:
-            emb = np.load(os.path.join(args.pretrained_emb_dir, orga+"_test", pro.name+".npy"))
-            pro.set_emb(emb)
-        for pro in test_proteins[orga]:
-            emb = np.load(os.path.join(args.pretrained_emb_dir, orga+"_test", pro.name+".npy"))
-            pro.set_emb(emb)
+        for pro in train_proteins[orga] + test_proteins[orga]:
+            pro.set_emb(np.load(os.path.join(args.pretrained_emb_dir, orga+"_test", pro.name+".npy")))
 
         # build dataset
-        train_data, train_label = build_data(train_proteins)
-        test_data, test_label = build_data(test_proteins)
-        print(orga)
-        print('train', len(train_data))
-        print('test', len(test_data))
-
-        print(f">>>> train acid classifier for {orga}")
+        train_data, train_label = build_data(train_proteins[orga])
+        test_data, test_label = build_data(test_proteins[orga])
+        print(f">>>>{orga}: train acid classifier for pretrained embedding")
         model_ckpt_fp = os.path.join(emb_mlp_save_dir, orga+".ckpt")
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
@@ -81,48 +75,49 @@ if __name__ == '__main__':
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
 
-        avg_acc, max_acc, min_acc = evaluate(clf, test_data, test_label) 
-        emb_results[orga] = (avg_acc, max_acc, min_acc)
-    emb_result_fp = os.path.join(args.self_dir, 'results', 'embed.eval')
+        avg_acc, acc_stdev = evaluate(clf, test_data, test_label) 
+        emb_results[orga] = (avg_acc, acc_stdev)
+    emb_result_fp = os.path.join(args.self_dir, 'results', 'emb.eval')
     with open(emb_result_fp, "w") as f:
-        f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\n" for orga, value in emb_results.items()])
-    
-    #### 测试ppi model without pooling layers
+        f.writelines([f"{orga}\t{value[0]}\t{value[1]}\n" for orga, value in emb_results.items()])
+
+    #### 测试ppi model
     # 加载模型
     model = load_model(PPIModel, os.path.join(args.model_dir, 'checkpoint_best.pt'))
-    # 测试conv层
-    conv_mlp_save_dir = os.path.join(args.self_dir, 'save', 'conv')
-    os.makedirs(conv_mlp_save_dir, exist_ok=True)
-    conv_results = {}
+    # forward projecter
     for orga in organisms:
-        # forward conv layers
-        for pro in train_proteins[orga]:
-            conv_enc = forward_module(model.encoder.forward_cnn_blocks, pro.emb)
-            pro.set_emb(conv_enc)
-        for pro in test_proteins[orga]:
-            conv_enc = forward_module(model.encoder.forward_cnn_blocks, pro.emb)
-            pro.set_emb(conv_enc)
+        for pro in train_proteins[orga] + test_proteins[orga]:
+            emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
+            pro.set_emb(emb.detach().squeeze(0).numpy())
 
-        # build dataset
-        train_data, train_label = build_data(train_proteins)
-        test_data, test_label = build_data(test_proteins)
-        print(orga)
-        print('train', train_data.shape)
-        print('test', test_data.shape)
+    for k in range(model.encoder.transformer.num_layers + 1):
+        enc_mlp_save_dir = os.path.join(args.self_dir, 'save', str(k))
+        os.makedirs(enc_mlp_save_dir, exist_ok=True)
+        enc_kth_results = {}
 
-        print(f">>>> train acid classifier for {orga}")
-        model_ckpt_fp = os.path.join(conv_mlp_save_dir, orga+".ckpt")
-        if os.path.exists(model_ckpt_fp):
-            clf = joblib.load(model_ckpt_fp)
-        else:
-            clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
-            clf.fit(train_data, train_label)
-            joblib.dump(clf, model_ckpt_fp)
+        for orga in organisms:
+            # build dataset
+            train_data, train_label = build_data(train_proteins[orga])
+            test_data, test_label = build_data(test_proteins[orga])
 
-        avg_acc, max_acc, min_acc = evaluate(clf, test_data, test_label) 
-        conv_results[orga] = (avg_acc, max_acc, min_acc)
-    emb_result_fp = os.path.join(args.self_dir, 'results', 'conv.eval')
-    with open(emb_result_fp, "w") as f:
-        f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\n" for orga, value in conv_results.items()])
+            print(f">>>> {orga}: train acid classifier for {k}th layer")
+            
+            model_ckpt_fp = os.path.join(enc_mlp_save_dir, orga+".ckpt")
+            if os.path.exists(model_ckpt_fp):
+                clf = joblib.load(model_ckpt_fp)
+            else:
+                clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+                clf.fit(train_data, train_label)
+                joblib.dump(clf, model_ckpt_fp)
+            avg_acc, acc_stdev = evaluate(clf, test_data, test_label) 
+            enc_kth_results[orga] = (avg_acc, acc_stdev)
+
+            if k < model.encoder.transformer.num_layers:
+                for pro in train_proteins[orga] + test_proteins[orga]:
+                    pro.set_emb(forward_kth_translayer(model, pro.emb, k))
+
+        enc_kth_result_fp = os.path.join(args.self_dir, 'results', f'{k}.eval')
+        with open(enc_kth_result_fp, "w") as f:
+            f.writelines([f"{orga}\t{value[0]}\t{value[1]}\n" for orga, value in enc_kth_results.items()])
 
 

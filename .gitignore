@@ -8,6 +8,6 @@ save/hpidb/*
 save/hvidb/*
 save/dscript/*
 *.npy
-*/save
+*.ckpt
 @deprecated
 __pycache__/

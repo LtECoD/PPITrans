@@ -32,57 +32,30 @@ class NaiveFullEncoder(NaiveEncoder):
 class Encoder(BaseFairseqModel):
     def __init__(self, args):
         super().__init__()
-        self.kernel_size = args.kernel_size
         self.max_len = args.max_len
-        init_cnn_block = nn.Sequential(
-            nn.Conv1d(in_channels=args.emb_dim, out_channels=args.hid_dim, \
-                kernel_size=self.kernel_size),
-            nn.ReLU(),
-            nn.Conv1d(in_channels=args.hid_dim, out_channels=args.hid_dim, \
-                    kernel_size=self.kernel_size),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2),
-            nn.BatchNorm1d(num_features=args.hid_dim))
-        cnn_blocks = [
-            nn.Sequential(
-                nn.Conv1d(in_channels=args.hid_dim, out_channels=args.hid_dim, \
-                    kernel_size=self.kernel_size),
-                nn.ReLU(),
-                nn.Conv1d(in_channels=args.hid_dim, out_channels=args.hid_dim, \
-                    kernel_size=self.kernel_size),
-                nn.ReLU(),
-                nn.MaxPool1d(kernel_size=2),
-                nn.BatchNorm1d(num_features=args.hid_dim)) \
-            for idx in range(args.cnn_layers-1)]
-        self.cnn_blocks = nn.Sequential(init_cnn_block, *cnn_blocks)
-        # 如果不需要缩短长度，则删除pooling层
-        if args.wo_pool:
-            for idx in range(args.cnn_layers):
-                del(self.cnn_blocks[idx][-2])
-        self.wo_pool = args.wo_pool
   
+        self.projector = nn.Sequential(
+            nn.Linear(args.emb_dim, args.hid_dim, bias=False),
+            nn.Dropout(args.dropout),
+            nn.LayerNorm(args.hid_dim))
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(d_model=args.hid_dim, nhead=4, \
                 dim_feedforward=args.hid_dim*4, dropout=args.dropout, batch_first=True), 
             num_layers=args.trans_layers)
 
-    def forward_cnn_blocks(self, embs, lens):
-        embs = embs.permute(0, 2, 1)
+    def forward_projecter(self, embs):
+        # embs: B x L x D
+        embs = self.projector(embs)
+        return embs
 
-        assert embs.size(2) <= self.max_len
-        cnn_encs = self.cnn_blocks(embs)
-        for idx in range(len(self.cnn_blocks)):
-            lens = lens - 2 * (self.kernel_size - 1)
-            if not self.wo_pool:
-                lens = torch.floor(lens / 2).long()
+    def forward_kth_translayer(self, encs, lens, k):
+        padding_mask = get_padding_mask(lens, encs.size(1))
+        encs = self.transformer.layers[k](encs, src_key_padding_mask=padding_mask)
+        return encs, lens
 
-        # 转置回来
-        cnn_encs = cnn_encs.permute(0, 2, 1)
-        return cnn_encs, lens
-
-    def forward_transformer(self, cnn_encs, lens):
-        padding_mask = get_padding_mask(lens, cnn_encs.size(1))
-        encs = self.transformer(cnn_encs, src_key_padding_mask=padding_mask)
+    def forward_transformer(self, encs, lens):
+        padding_mask = get_padding_mask(lens, encs.size(1))
+        encs = self.transformer(encs, src_key_padding_mask=padding_mask)
         return encs, lens
 
     def forward(self, fst_embs, fst_lens, sec_embs, sec_lens):
@@ -90,10 +63,10 @@ class Encoder(BaseFairseqModel):
             fst_embs: bsz x max_len x emb_dim
             sec_embs: bsz x max_len x emb_dim
         """
-        fst_cnn_encs, fst_lens = self.forward_cnn_blocks(fst_embs, fst_lens)
-        sec_cnn_encs, sec_lens = self.forward_cnn_blocks(sec_embs, sec_lens)
-        fst_encs, fst_lens = self.forward_cnn_blocks(fst_cnn_encs, fst_lens)
-        sec_encs, sec_lens = self.forward_cnn_blocks(sec_cnn_encs, sec_lens)
+        fst_embs = self.forward_projecter(fst_embs)
+        sec_embs = self.forward_projecter(sec_embs)
+        fst_encs, fst_lens = self.forward_transformer(fst_embs, fst_lens)
+        sec_encs, sec_lens = self.forward_transformer(sec_embs, sec_lens)
         return fst_encs, fst_lens, sec_encs, sec_lens
 
 

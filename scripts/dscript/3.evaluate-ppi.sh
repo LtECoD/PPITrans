@@ -8,18 +8,8 @@ TEST_SET=('ecoli_test' 'mouse_test' 'fly_test' 'worm_test' 'yeast_test' 'human_t
 
 for split in ${TEST_SET[*]}; do
     python module/evaluate.py \
-        --result_dir ./results/${DATASET}/${ARCH}-woppm-wopool/prediction  \
-        --metric_dir ./results/${DATASET}/${ARCH}-woppm-wopool/metric \
-        --split ${split}
-
-    python module/evaluate.py \
         --result_dir ./results/${DATASET}/${ARCH}-woppm/prediction  \
         --metric_dir ./results/${DATASET}/${ARCH}-woppm/metric \
-        --split ${split}
-
-    python module/evaluate.py \
-        --result_dir ./results/${DATASET}/${ARCH}-wopool/prediction  \
-        --metric_dir ./results/${DATASET}/${ARCH}-wopool/metric \
         --split ${split}
 
     python module/evaluate.py \

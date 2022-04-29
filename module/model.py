@@ -19,10 +19,6 @@ class BaseModel(BaseFairseqModel):
         parser.add_argument("--dropout", type=float)
         parser.add_argument("--emb-dim", type=int)
         parser.add_argument("--hid-dim", type=int)
-        parser.add_argument("--cnn-layers", type=int)
-        parser.add_argument("--kernel-size", type=int)
-        parser.add_argument("--wo-pool", action="store_true",\
-             help="whether without pooling layer")
         parser.add_argument("--wo-ppm", action="store_true", \
             help="whether without pretrained models")
         parser.add_argument("--trans-layers", type=int)

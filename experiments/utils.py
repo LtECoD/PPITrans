@@ -21,9 +21,7 @@ class Protein:
 
     def set_emb(self, emb):
         self.emb = emb
-    
-    def set_length(self, length):
-        self.length = length
+        assert self.length == len(emb)
 
     def discretize(self):
         """打散序列"""
@@ -71,7 +69,7 @@ def load_proteins(orga, _dir):
             raise NotImplementedError
         proteins[fst] = pro
     
-    return proteins.values()
+    return list(proteins.values())
 
 
 def load_model(model_class, ckpt_path):
@@ -82,10 +80,9 @@ def load_model(model_class, ckpt_path):
     return model
 
 
-def forward_module(module, emb):
-    """only two module, conv and transformer"""
+def forward_kth_translayer(model, emb, k):
     length = torch.LongTensor([len(emb)])
     emb = torch.Tensor(emb).unsqueeze(0)           # 1 x L x D
-    enc, _ = module(emb, length)
+    enc, _ = model.encoder.forward_kth_translayer(emb, length, k)
     return enc.squeeze(0).detach().numpy()
 
