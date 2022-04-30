@@ -6,7 +6,7 @@ standard_acids = [
         ('A', 1), ('C', 6), ('D', 5), ('E', 7), ('F', 2), 
         ('G', 1), ('H', 4), ('I', 2), ('K', 5), ('L', 2),
         ('M', 3), ('N', 4), ('P', 2), ('Q', 7), ('R', 4),
-        ('S', 3), ('T', 3), ('V', 1), ('W', 4), ('Y', 3)]
+        ('S', 3), ('T', 3), ('V', 1), ('W', 4), ('Y', 3), ('X', 0)]
 acids = [acid_type[0] for acid_type in standard_acids]
 types = [acid_type[1] for acid_type in standard_acids]
 
