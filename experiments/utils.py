@@ -18,6 +18,11 @@ class Protein:
         self.pos_neighbors = []
         self.neg_neighbors = []
         self.length = len(seq)
+        self.ss = None
+
+    def set_ss(self, ss):
+        assert len(ss) == len(self.seq)
+        self.ss = ss
 
     def set_emb(self, emb):
         self.emb = emb

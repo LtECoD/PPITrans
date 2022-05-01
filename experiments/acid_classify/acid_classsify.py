@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--pretrained_emb_dir", type=str, default='./data/dscript/processed/embs')
     parser.add_argument("--self_dir", type=str, default="./experiments/acid_classify")
-    parser.add_argument("--protein_dir", type=str, default="./experiments/proteins")
+    parser.add_argument("--protein_dir", type=str, default="./experiments/data/proteins")
     parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi", help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)    
