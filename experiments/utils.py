@@ -17,7 +17,7 @@ class Protein:
         self.seq = seq
         self.pos_neighbors = []
         self.neg_neighbors = []
-        self.length = len(seq)
+        self.length = len(seq) if seq is not None else None
         self.ss = None
 
     def set_ss(self, ss):
@@ -26,7 +26,10 @@ class Protein:
 
     def set_emb(self, emb):
         self.emb = emb
-        assert self.length == len(emb)
+        if self.length is not None:
+            assert self.length == len(emb)
+        else:
+            self.length = len(emb)
 
     def discretize(self):
         """打散序列"""
