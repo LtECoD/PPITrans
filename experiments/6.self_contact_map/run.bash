@@ -1,0 +1,1 @@
+python experiments/6.self_contact_map/scm.py

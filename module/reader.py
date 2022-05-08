@@ -19,7 +19,6 @@ class PPIDataset(FairseqDataset):
             self.samples = [line.strip().split("\t") for line in f.readlines()]
         # 数据集中的unique蛋白质
         self.proteins = set([sample[0] for sample in self.samples]) | set([sample[1] for sample in self.samples])
-        # 编码文件buffer
         self.emb_sub_dir = os.path.join(args.data_dir, "embs", split)
         self.max_len = args.max_len
         self.emb_dim = args.emb_dim

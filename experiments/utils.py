@@ -18,7 +18,9 @@ class Protein:
         self.pos_neighbors = []
         self.neg_neighbors = []
         self.length = len(seq) if seq is not None else None
-        self.ss = None
+        self.ss = None      # secondary structure
+        self.emb = None 
+        self.cm = None      # contact map
 
     def set_ss(self, ss):
         assert len(ss) == len(self.seq)
@@ -30,6 +32,10 @@ class Protein:
             assert self.length == len(emb)
         else:
             self.length = len(emb)
+
+    def set_cm(self, cm):
+        assert self.length == cm.shape[0]
+        self.cm = cm
 
     def discretize(self):
         """打散序列"""
@@ -54,7 +60,7 @@ class Protein:
         return _str
     
 def load_proteins(orga, _dir):
-    pairs = open(os.path.join(_dir, orga+".pair")).readlines()
+    pairs = open(os.path.join(_dir, orga+".pair"), "r").readlines()
     pairs = [p.strip().split() for p in pairs]
 
     seqs = open(os.path.join(_dir, orga+".seq")).readlines()

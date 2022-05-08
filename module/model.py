@@ -22,6 +22,7 @@ class BaseModel(BaseFairseqModel):
         parser.add_argument("--wo-ppm", action="store_true", \
             help="whether without pretrained models")
         parser.add_argument("--trans-layers", type=int)
+        parser.add_argument("--fuse-out", action="store_true")
 
     def forward(self, inputs):
         fst_encs, fst_lens, sec_encs, sec_lens = self.encoder(**inputs)
@@ -52,10 +53,10 @@ class PPIModel(BaseModel):
 @register_model_architecture("naive_ppi_model", "naive_ppi")
 def naive_ppi_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)
-    args.wo_pool = getattr(args, 'wo_pool', False)
 
 
 @register_model_architecture("ppi_model", "ppi")
 def ppi_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)
-    args.wo_pool = getattr(args, 'wo_pool', False)
+    args.fuse_out = getattr(args, "fuse_out", False)
+
