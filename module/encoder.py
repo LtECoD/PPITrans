@@ -1,7 +1,25 @@
+import torch
 import torch.nn as nn
 from fairseq.models import BaseFairseqModel
 
 from module.utils import get_padding_mask
+
+
+class Embedder(nn.Module):
+    def __init__(self, args):
+        super(Embedder, self).__init__()
+        self.aa_embeder = nn.Embedding(num_embeddings=22, \
+            embedding_dim=args.emb_dim, padding_idx=0)
+        self.pos_embeder = nn.Embedding(num_embeddings=args.max_len+10,
+            embedding_dim=args.emb_dim, padding_idx=0)
+
+    def forward(self, seqs, lens=None):
+        bsz, maxlen = seqs.size()
+        pos = torch.arange(maxlen) + 1
+        pos = pos.unsqueeze(0).repeat(bsz, 1).to(seqs.device)
+        if lens is not None:
+            pos[pos > lens.unsqueeze(-1)] = 0
+        return self.aa_embeder(seqs) + self.pos_embeder(pos)
 
 
 class NaiveEncoder(BaseFairseqModel):
@@ -19,12 +37,11 @@ class NaiveEncoder(BaseFairseqModel):
 class NaiveFullEncoder(NaiveEncoder):
     def __init__(self, args):
         super().__init__(args)
-        self.embeder = nn.Embedding(num_embeddings=22, \
-            embedding_dim=args.emb_dim, padding_idx=0)
-    
+        self.embeder = Embedder(args)
+
     def forward(self, fst_seqs, fst_lens, sec_seqs, sec_lens):
-        fst_embs = self.embeder(fst_seqs)
-        sec_embs = self.embeder(sec_seqs)
+        fst_embs = self.embeder(fst_seqs, fst_lens)
+        sec_embs = self.embeder(sec_seqs, sec_lens)
         return super().forward(fst_embs, fst_lens, sec_embs, sec_lens)
 
 
@@ -64,27 +81,19 @@ class Encoder(BaseFairseqModel):
         """
         fst_encs = self.forward_projecter(fst_embs)
         sec_encs = self.forward_projecter(sec_embs)
-        fst_encs_list = [fst_embs, fst_encs]
-        sec_encs_list = [sec_embs, sec_encs]
-        for k in range(self.transformer.num_layers):
-            fst_encs, _ = self.forward_kth_translayer(fst_encs, fst_lens, k)
-            sec_encs, _ = self.forward_kth_translayer(sec_encs, sec_lens, k)
-            fst_encs_list.append(fst_encs)
-            sec_encs_list.append(sec_encs)
 
-        # fst_encs, fst_lens = self.forward_transformer(fst_embs, fst_lens)
-        # sec_encs, sec_lens = self.forward_transformer(sec_embs, sec_lens)
+        fst_encs, fst_lens = self.forward_transformer(fst_encs, fst_lens)
+        sec_encs, sec_lens = self.forward_transformer(sec_encs, sec_lens)
 
-        return fst_encs_list, fst_lens, sec_encs_list, sec_lens
+        return fst_encs, fst_lens, sec_encs, sec_lens
 
 
 class FullEncoder(Encoder):
     def __init__(self, args):
         super().__init__(args)
-        self.embeder = nn.Embedding(num_embeddings=22, \
-            embedding_dim=args.emb_dim, padding_idx=0)
+        self.embeder = Embedder(args)
 
     def forward(self, fst_seqs, fst_lens, sec_seqs, sec_lens):
-        fst_embs = self.embeder(fst_seqs)
-        sec_embs = self.embeder(sec_seqs)
+        fst_embs = self.embeder(fst_seqs, fst_lens)
+        sec_embs = self.embeder(sec_seqs, sec_lens)
         return super().forward(fst_embs, fst_lens, sec_embs, sec_lens)

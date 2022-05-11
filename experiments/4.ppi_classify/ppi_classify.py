@@ -11,9 +11,10 @@ from sklearn.neural_network import MLPClassifier
 import sys
 
 sys.path.append(".")
-from module.model import PPIModel
 from experiments.utils import Protein, organisms
-from experiments.utils import load_model, forward_kth_translayer
+from experiments.utils import load_model
+from experiments.utils import forward_kth_translayer
+from experiments.utils import lookup_embed
 
 
 def evaluate(clf, data, label):
@@ -33,7 +34,9 @@ def evaluate(clf, data, label):
 
 def load_samples(data_dir, num, split):
     pair_fp = os.path.join(data_dir, "pairs", split+".tsv")
-    emb_dir = os.path.join(data_dir, "embs", split)
+    seq_fp = os.path.join(data_dir, "seqs", split+".fasta")
+    with open(seq_fp, "r") as f:
+        seqs_dict = dict([line.strip().split("\t") for line in f.readlines()])   
 
     with open(pair_fp, "r") as f:
         lines = random.sample(f.readlines(), k=num)
@@ -41,10 +44,8 @@ def load_samples(data_dir, num, split):
 
     data = []
     for idx, (fst, sec, label) in enumerate(samples):
-        fpro = Protein(name=fst, seq=None)
-        spro = Protein(name=sec, seq=None)
-        fpro.set_emb(np.load(os.path.join(emb_dir, fpro.name+".npy")))
-        spro.set_emb(np.load(os.path.join(emb_dir, spro.name+".npy")))
+        fpro = Protein(name=fst, seq=seqs_dict[fst])
+        spro = Protein(name=sec, seq=seqs_dict[sec])
         data.append((fpro, spro, label))
     return data
 
@@ -67,7 +68,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_samples", type=int, default=5000)
     parser.add_argument("--test_samples", type=int, default=2000)
     parser.add_argument("--self_dir", type=str, default="./experiments/4.ppi_classify")
-    parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi", help="saved ppi model")
+    parser.add_argument("--model_dir", type=str, help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)    
     
@@ -77,17 +78,43 @@ if __name__ == '__main__':
         test_proteins[orga] = \
             load_samples(args.processed_dir, args.test_samples, orga+"_test")
 
-    save_dir = os.path.join(args.self_dir, 'save')
+    model_name = os.path.basename(args.model_dir)
+    save_dir = os.path.join(args.self_dir, 'save', model_name)
     os.makedirs(save_dir, exist_ok=True)
-    results_dir = os.path.join(args.self_dir, "results")
+    results_dir = os.path.join(args.self_dir, "results", model_name)
     os.makedirs(results_dir, exist_ok=True)
+
+    # 加载模型
+    model = load_model(args.model_dir)
+
+    # load embedding
+    if not hasattr(model.encoder, "embeder"):
+        emb_dir = os.path.join(args.processed_dir, "embs")
+        for (fpro, spro, _) in train_proteins:
+            fpro.set_emb(np.load(os.path.join(emb_dir, "human_train", fpro.name+".npy")))
+            spro.set_emb(np.load(os.path.join(emb_dir, "human_train", spro.name+".npy")))
+
+        for orga in organisms:
+            for (fpro, spro, _) in test_proteins[orga]:
+                fpro.set_emb(np.load(os.path.join(emb_dir, f"{orga}_test", fpro.name+".npy")))
+                spro.set_emb(np.load(os.path.join(emb_dir, f"{orga}_test", spro.name+".npy")))
+
+    else:
+        for (fpro, spro, _) in train_proteins:
+            fpro.set_emb(lookup_embed(fpro, model.encoder.embeder))
+            spro.set_emb(lookup_embed(spro, model.encoder.embeder))
+
+        for orga in organisms:
+            for (fpro, spro, _) in test_proteins[orga]:
+                fpro.set_emb(lookup_embed(fpro, model.encoder.embeder))
+                spro.set_emb(lookup_embed(spro, model.encoder.embeder))
 
     ##### 测试pretrained-embedding
     emb_results = {}
     # build train dataset
     train_data, train_label = build_data(train_proteins)
 
-    print(f">>>>train ppi classifier for pretrained embedding")
+    print(f">>>>{model_name}: train ppi classifier for pretrained embedding")
     model_ckpt_fp = os.path.join(save_dir, "emb.ckpt")
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
@@ -103,11 +130,7 @@ if __name__ == '__main__':
     emb_result_fp = os.path.join(results_dir, 'emb.eval')
     with open(emb_result_fp, "w") as f:
         f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\t{value[3]}\n" for orga, value in emb_results.items()])
-
-
-    #### 测试ppi model
-    # 加载模型
-    model = load_model(PPIModel, os.path.join(args.model_dir, 'checkpoint_best.pt'))
+    
     # forward projecter
     for (fpro, spro, _) in train_proteins:
         femb = model.encoder.forward_projecter(torch.Tensor(fpro.emb).unsqueeze(0))
@@ -127,7 +150,7 @@ if __name__ == '__main__':
 
         # build dataset
         train_data, train_label = build_data(train_proteins)
-        print(f">>>> train ppi classifier for {k}th layer")
+        print(f">>>>{model_name}: train ppi classifier for {k}th layer")
         model_ckpt_fp = os.path.join(save_dir, f"{k}.ckpt")
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)

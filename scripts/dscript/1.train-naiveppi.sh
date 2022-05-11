@@ -38,7 +38,7 @@ fairseq-train \
     --optimizer adam \
     --lr 3e-5 \
     --batch-size 32 \
-    --max-epoch 3 \
+    --max-epoch 5 \
     \
     --data-dir ./data/${DATASET}/processed \
     --train-subset human_train \

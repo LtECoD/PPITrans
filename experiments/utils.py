@@ -1,5 +1,8 @@
 import os
 import torch
+import re
+
+from module.model import PPIModel
 
 organisms = ['ecoli', 'mouse', 'fly', 'worm', 'yeast', 'human']
 standard_acids = [
@@ -9,6 +12,8 @@ standard_acids = [
         ('S', 3), ('T', 3), ('V', 1), ('W', 4), ('Y', 3), ('X', 0)]
 acids = [acid_type[0] for acid_type in standard_acids]
 types = [acid_type[1] for acid_type in standard_acids]
+
+acids_vocab = {k[0]: idx+1 for idx, k in enumerate(standard_acids)}
 
 
 class Protein:
@@ -59,6 +64,7 @@ class Protein:
             _str = _str + f"\t{nei.name}\n"
         return _str
     
+
 def load_proteins(orga, _dir):
     pairs = open(os.path.join(_dir, orga+".pair"), "r").readlines()
     pairs = [p.strip().split() for p in pairs]
@@ -86,11 +92,19 @@ def load_proteins(orga, _dir):
     return list(proteins.values())
 
 
-def load_model(model_class, ckpt_path):
-    state_dict = torch.load(ckpt_path)
+def load_model(model_dir):
+    model_name = os.path.basename(model_dir)
+    # 加载模型
+    if "ppi" in model_name:
+        model_class = PPIModel
+    else:
+        raise NotImplementedError 
+
+    state_dict = torch.load(os.path.join(model_dir, 'checkpoint_best.pt'))
     args = state_dict["args"]
     model = model_class.build_model(args, None)
     model.load_state_dict(state_dict["model"])
+    print(model)
     return model
 
 
@@ -100,3 +114,10 @@ def forward_kth_translayer(model, emb, k):
     enc, _ = model.encoder.forward_kth_translayer(emb, length, k)
     return enc.squeeze(0).detach().numpy()
 
+
+def lookup_embed(pro, embeder):
+    aa_list = list(re.sub(r"[UZOB]", "X", pro.seq))
+    ids = torch.LongTensor([acids_vocab[a] for a in aa_list])
+    ids = ids.to(embeder.seq_embeder.weight.device)
+    embed = embeder(ids).detach().numpy()
+    return embed 

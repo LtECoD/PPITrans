@@ -22,7 +22,6 @@ class BaseModel(BaseFairseqModel):
         parser.add_argument("--wo-ppm", action="store_true", \
             help="whether without pretrained models")
         parser.add_argument("--trans-layers", type=int)
-        parser.add_argument("--fuse-out", action="store_true")
 
     def forward(self, inputs):
         fst_encs, fst_lens, sec_encs, sec_lens = self.encoder(**inputs)

@@ -4,7 +4,6 @@ import random
 import joblib
 import torch
 import numpy as np
-from tqdm import tqdm
 from statistics import stdev, mean
 from sklearn.metrics import f1_score
 from sklearn.neural_network import MLPClassifier
@@ -12,7 +11,10 @@ from sklearn.neural_network import MLPClassifier
 import sys
 sys.path.append(".")
 from module.model import PPIModel
-from experiments.utils import Protein, load_model, forward_kth_translayer
+from experiments.utils import Protein, load_model
+from experiments.utils import forward_kth_translayer
+from experiments.utils import lookup_embed
+
 
 
 def load_proteins(split, _dir):
@@ -63,7 +65,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--self_dir", type=str, default="./experiments/6.self_contact_map")
-    parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi", help="saved ppi model")
+    parser.add_argument("--model_dir", type=str, help="saved ppi model")
     parser.add_argument("--threshold", type=float, default=8)
     args = parser.parse_args()
     random.seed(args.seed)   
@@ -71,23 +73,32 @@ if __name__ == '__main__':
     protein_dir = os.path.join(args.self_dir, "data")
     pretrained_emb_dir = os.path.join(protein_dir, "embs")
 
-    save_dir = os.path.join(args.self_dir, 'save')
-    results_dir = os.path.join(args.self_dir, 'results')
+    model_name = os.path.basename(args.model_dir)
+    save_dir = os.path.join(args.self_dir, 'save', model_name)
+    results_dir = os.path.join(args.self_dir, 'results', model_name)
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
 
     train_proteins = load_proteins('train', protein_dir)
     test_proteins = load_proteins('test', protein_dir)
 
+    # 加载模型
+    model = load_model(args.model_dir)
+
     ##### 测试pretrained-embedding    
     emb_results = {}
-    for pro in train_proteins + test_proteins:
-        pro.set_emb(np.load(os.path.join(pretrained_emb_dir, pro.name+".npy")))
+    # load embedding
+    if not hasattr(model.encoder, "embeder"):
+        for pro in train_proteins + test_proteins:
+            pro.set_emb(np.load(os.path.join(pretrained_emb_dir, pro.name+".npy")))
+    else:
+        for pro in train_proteins + test_proteins:
+            pro.set_emb(lookup_embed(pro, model.encoder.embeder))
     
     train_data, train_label = build_data(train_proteins, args.threshold)
     test_data, test_label = build_data(test_proteins, args.threshold)
 
-    print(f">>>> train cm classifier for pretrained embedding")
+    print(f">>>>{model_name}: train cm classifier for pretrained embedding")
     model_ckpt_fp = os.path.join(save_dir, f"emb.ckpt")
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
@@ -96,16 +107,11 @@ if __name__ == '__main__':
         clf.fit(train_data, train_label)
         joblib.dump(clf, model_ckpt_fp)
 
-    avg_acc, acc_stdev, acc_min, acc_max = evaluate(clf, test_data, test_label) 
-    emb_results = (avg_acc, acc_stdev, acc_min, acc_max)
-
-    emb_result_fp = os.path.join(args.self_dir, 'results', f'emb.eval')
+    emb_results = evaluate(clf, test_data, test_label) 
+    emb_result_fp = os.path.join(results_dir, f'emb.eval')
     with open(emb_result_fp, "w") as f:
         f.write("\t".join(list(map(str, emb_results))))
 
-    #### 测试ppi model
-    # 加载模型
-    model = load_model(PPIModel, os.path.join(args.model_dir, 'checkpoint_best.pt'))
     # forward projecter
     for pro in train_proteins + test_proteins:
         emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
@@ -115,7 +121,7 @@ if __name__ == '__main__':
         # build dataset
         train_data, train_label = build_data(train_proteins, args.threshold)
         test_data, test_label = build_data(test_proteins, args.threshold)
-        print(f">>>> train cm classifier for {k}th layer")
+        print(f">>>>{model_name} train cm classifier for {k}th layer")
         
         model_ckpt_fp = os.path.join(save_dir, f"{k}.ckpt")
         if os.path.exists(model_ckpt_fp):
@@ -124,14 +130,13 @@ if __name__ == '__main__':
             clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
-        avg_acc, acc_stdev, acc_min, acc_max = evaluate(clf, test_data, test_label) 
-        enc_kth_results = (avg_acc, acc_stdev, acc_min, acc_max)
+        enc_kth_results = evaluate(clf, test_data, test_label)
 
         if k < model.encoder.transformer.num_layers:
             for pro in train_proteins + test_proteins:
                 pro.set_emb(forward_kth_translayer(model, pro.emb, k))
 
-        enc_kth_result_fp = os.path.join(args.self_dir, 'results', f'{k}.eval')
+        enc_kth_result_fp = os.path.join(results_dir, f'{k}.eval')
         with open(enc_kth_result_fp, "w") as f:
             f.write("\t".join(list(map(str, enc_kth_results))))
             

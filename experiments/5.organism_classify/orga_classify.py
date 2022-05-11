@@ -9,9 +9,10 @@ from sklearn.neural_network import MLPClassifier
 
 import sys
 sys.path.append(".")
-from module.model import PPIModel
-from experiments.utils import load_model, forward_kth_translayer
+from experiments.utils import load_model
+from experiments.utils import forward_kth_translayer
 from experiments.utils import organisms, Protein
+from experiments.utils import lookup_embed
 
 
 def evaluate(clf, data, label):
@@ -26,15 +27,18 @@ def evaluate(clf, data, label):
     return results
 
 
-def load_proteins(emb_dir, orga, k):
-    emb_dir = os.path.join(emb_dir, orga+"_test")
-    pros = os.listdir(emb_dir)
+def load_proteins(data_dir, orga, k):
+
+    seq_fp = os.path.join(data_dir, "seqs", orga+"_test.fasta")
+    with open(seq_fp, "r") as f:
+        seqs_dict = dict([line.strip().split("\t") for line in f.readlines()])   
+
+    pros = list(seqs_dict.keys())
     selected_pros = random.sample(pros, k=k)
 
     pros = []
-    for p in selected_pros:
-        pp = Protein(name=p[:-4], seq=None)
-        pp.set_emb(np.load(os.path.join(emb_dir, p)))
+    for name in selected_pros:
+        pp = Protein(name=name, seq=seqs_dict[name])
         pros.append(pp)
     return pros
 
@@ -53,30 +57,41 @@ def build_data(proteins):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=99)
-    parser.add_argument("--pretrained_emb_dir", type=str, default='./data/dscript/processed/embs')
+    parser.add_argument("--processed_dir", type=str, default='./data/dscript/processed')
     parser.add_argument("--self_dir", type=str, default="./experiments/5.organism_classify")
     parser.add_argument("--num_per_orga", type=int, default=500)
-    parser.add_argument("--model_dir", type=str, default="./save/dscript/ppi", help="saved ppi model")
+    parser.add_argument("--model_dir", type=str, help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)   
 
     train_proteins = {}
     test_proteins = {}
     for orga in organisms:
-        train_proteins[orga] = load_proteins(args.pretrained_emb_dir, orga, args.num_per_orga)
-        test_proteins[orga] = load_proteins(args.pretrained_emb_dir, orga, args.num_per_orga)
+        train_proteins[orga] = load_proteins(args.processed_dir, orga, args.num_per_orga)
+        test_proteins[orga] = load_proteins(args.processed_dir, orga, args.num_per_orga)
 
-    save_dir = os.path.join(args.self_dir, 'save')
+    model_name = os.path.basename(args.model_dir)
+    save_dir = os.path.join(args.self_dir, 'save', model_name)
     os.makedirs(save_dir, exist_ok=True)
-    result_dir = os.path.join(args.self_dir, "results")
+    result_dir = os.path.join(args.self_dir, "results", model_name)
     os.makedirs(result_dir, exist_ok=True)
+
+    model = load_model(args.model_dir)
+    for orga in organisms:
+        # load embedding
+        if not hasattr(model.encoder, "embeder"):
+            for pro in train_proteins[orga] + test_proteins[orga]:
+                pro.set_emb(np.load(os.path.join(args.processed_dir, "embs", orga+"_test", pro.name+".npy")))
+        else:
+            for pro in train_proteins[orga] + test_proteins[orga]:
+                pro.set_emb(lookup_embed(pro, model.encoder.embeder))
 
     ##### 测试pretrained-embedding
     # build dataset
     train_data, train_label = build_data(train_proteins)
     test_data, test_label = build_data(test_proteins)
 
-    print(f">>>> train acid classifier for pretrained embedding")
+    print(f">>>>{model_name} train orga classifier for pretrained embedding")
     model_ckpt_fp = os.path.join(save_dir, "emb.ckpt")
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
@@ -90,9 +105,6 @@ if __name__ == '__main__':
     with open(emb_result_fp, "w") as f:
         f.writelines([f"{orga}\t{value}\n" for orga, value in emb_results.items()])
 
-    #### 测试ppi model
-    # 加载模型
-    model = load_model(PPIModel, os.path.join(args.model_dir, 'checkpoint_best.pt'))
     # forward projecter
     for orga in organisms:
         for pro in train_proteins[orga] + test_proteins[orga]:
@@ -103,7 +115,7 @@ if __name__ == '__main__':
         train_data, train_label = build_data(train_proteins)
         test_data, test_label = build_data(test_proteins)
 
-        print(f">>>> train acid classifier for {k}th layer")
+        print(f">>>>{model_name} train orga classifier for {k}th layer")
         model_ckpt_fp = os.path.join(save_dir, f"{k}.ckpt")
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
