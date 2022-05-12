@@ -3,6 +3,7 @@ import argparse
 import random
 import joblib
 import torch
+import pickle
 import numpy as np
 from statistics import stdev, mean
 from sklearn.metrics import f1_score
@@ -10,37 +11,40 @@ from sklearn.neural_network import MLPClassifier
 
 import sys
 sys.path.append(".")
-from module.model import PPIModel
 from experiments.utils import Protein, load_model
 from experiments.utils import forward_kth_translayer
 from experiments.utils import lookup_embed
 
 
-
-def load_proteins(split, _dir):
+def load_samples(split, _dir):
     seqs = open(os.path.join(_dir, split+".seq"), "r").readlines()
-    cms = np.load(os.path.join(_dir, split+".npy"), allow_pickle=True).tolist()
+    samples = pickle.load(open(os.path.join(_dir, split+".pkl"), "rb"))
     proteins = []
     for seq in seqs:
         _id, seq = seq.strip().split()
         pro = Protein(_id, seq)
-        pro.set_cm(cms[_id])
-        proteins.append(pro)
+        proteins.append([pro, samples[_id]])
     return proteins
 
 
-def build_data(proteins, threshold):
+def build_data(proteins):
     data = []
     label = []
-    for pro in proteins:
-        cm = pro.cm < threshold
-        pemb = np.expand_dims(pro.emb, axis=1) * np.expand_dims(pro.emb, axis=0)    # L x L x D
-        xindices, yindices = np.triu_indices(pro.length, k=1)
-        pemb = pemb[xindices, yindices]
-        cm = cm[xindices, yindices]
+    for pro, inst in proteins:
+        # pemb = np.expand_dims(pro.emb, axis=1) * np.expand_dims(pro.emb, axis=0)    # L x L x D
+        findices = inst[:, 0]
+        sindices = inst[:, 1]
 
-        data.append(np.reshape(pemb, (-1, pemb.shape[-1])))
-        label.append(np.reshape(cm.astype(np.int32), (-1,)))
+        _data = pro.emb[findices] * pro.emb[sindices]       # l x D
+        _label = inst[:, 2]
+
+        assert _data.shape[0] == _label.shape[0]
+        data.append(_data)
+        label.append(_label)
+
+    zipped = list(zip(data, label))
+    random.shuffle(zipped)
+    data, label = zip(*zipped)
 
     data = np.vstack(data)
     label = np.hstack(label)
@@ -66,7 +70,6 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--self_dir", type=str, default="./experiments/6.self_contact_map")
     parser.add_argument("--model_dir", type=str, help="saved ppi model")
-    parser.add_argument("--threshold", type=float, default=8)
     args = parser.parse_args()
     random.seed(args.seed)   
 
@@ -79,8 +82,8 @@ if __name__ == '__main__':
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
 
-    train_proteins = load_proteins('train', protein_dir)
-    test_proteins = load_proteins('test', protein_dir)
+    train_samples = load_samples('train', protein_dir)
+    test_samples = load_samples('test', protein_dir)
 
     # 加载模型
     model = load_model(args.model_dir)
@@ -89,14 +92,14 @@ if __name__ == '__main__':
     emb_results = {}
     # load embedding
     if not hasattr(model.encoder, "embeder"):
-        for pro in train_proteins + test_proteins:
+        for pro, _ in train_samples + test_samples:
             pro.set_emb(np.load(os.path.join(pretrained_emb_dir, pro.name+".npy")))
     else:
-        for pro in train_proteins + test_proteins:
+        for pro, _ in train_samples + test_samples:
             pro.set_emb(lookup_embed(pro, model.encoder.embeder))
     
-    train_data, train_label = build_data(train_proteins, args.threshold)
-    test_data, test_label = build_data(test_proteins, args.threshold)
+    train_data, train_label = build_data(train_samples)
+    test_data, test_label = build_data(test_samples)
 
     print(f">>>>{model_name}: train cm classifier for pretrained embedding")
     model_ckpt_fp = os.path.join(save_dir, f"emb.ckpt")
@@ -113,14 +116,14 @@ if __name__ == '__main__':
         f.write("\t".join(list(map(str, emb_results))))
 
     # forward projecter
-    for pro in train_proteins + test_proteins:
+    for pro, _ in train_samples + test_samples:
         emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
         pro.set_emb(emb.detach().squeeze(0).numpy())
 
     for k in range(model.encoder.transformer.num_layers + 1):
         # build dataset
-        train_data, train_label = build_data(train_proteins, args.threshold)
-        test_data, test_label = build_data(test_proteins, args.threshold)
+        train_data, train_label = build_data(train_samples)
+        test_data, test_label = build_data(test_samples)
         print(f">>>>{model_name} train cm classifier for {k}th layer")
         
         model_ckpt_fp = os.path.join(save_dir, f"{k}.ckpt")
@@ -133,7 +136,7 @@ if __name__ == '__main__':
         enc_kth_results = evaluate(clf, test_data, test_label)
 
         if k < model.encoder.transformer.num_layers:
-            for pro in train_proteins + test_proteins:
+            for pro, _ in train_samples + test_samples:
                 pro.set_emb(forward_kth_translayer(model, pro.emb, k))
 
         enc_kth_result_fp = os.path.join(results_dir, f'{k}.eval')

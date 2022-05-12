@@ -3,6 +3,7 @@ import argparse
 import random
 import joblib
 import torch
+import pickle
 import numpy as np
 from statistics import stdev, mean
 from sklearn.metrics import f1_score
@@ -17,26 +18,34 @@ from experiments.utils import lookup_embed
 
 def load_samples(split, _dir):
     seqs = open(os.path.join(_dir, split+".seq"), "r").readlines()
-    cms = np.load(os.path.join(_dir, split+".npy"), allow_pickle=True).tolist()
-    samples = []
+    samples = pickle.load(open(os.path.join(_dir, split+".pkl"), "rb"))
+    data = []
     for seq in seqs:
         fid, fseq, sid, sseq = seq.strip().split()
         fpro = Protein(fid, fseq)
         spro = Protein(sid, sseq)
-        samples.append([fpro, spro, cms[f"{fid}-{sid}"]])
+        data.append([fpro, spro, samples[f"{fid}-{sid}"]])
 
-    return samples
+    return data
 
 
-def build_data(samples, threshold):
+def build_data(samples):
     data = []
     label = []
-    for fpro, spro, pcm in samples:
-        cm = pcm < threshold
-        pemb = np.expand_dims(fpro.emb, axis=1) * np.expand_dims(spro.emb, axis=0)    # L x L x D
+    for fpro, spro, inst in samples:
+        findices = inst[:, 0]
+        sindices = inst[:, 1]
 
-        data.append(np.reshape(pemb, (-1, pemb.shape[-1])))
-        label.append(np.reshape(cm.astype(np.int32), (-1,)))
+        _data = fpro.emb[findices] * spro.emb[sindices]       # l x D
+        _label = inst[:, 2]
+
+        assert _data.shape[0] == _label.shape[0]
+        data.append(_data)
+        label.append(_label)
+
+    zipped = list(zip(data, label))
+    random.shuffle(zipped)
+    data, label = zip(*zipped)
 
     data = np.vstack(data)
     label = np.hstack(label)
@@ -62,7 +71,6 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--self_dir", type=str, default="./experiments/7.ppi_contact_map")
     parser.add_argument("--model_dir", type=str, help="saved ppi model")
-    parser.add_argument("--threshold", type=float, default=15)
     args = parser.parse_args()
     random.seed(args.seed) 
 
@@ -93,8 +101,8 @@ if __name__ == '__main__':
             fpro.set_emb(lookup_embed(fpro, model.encoder.embeder))
             spro.set_emb(lookup_embed(spro, model.encoder.embeder))
 
-    train_data, train_label = build_data(train_samples, args.threshold)
-    test_data, test_label = build_data(test_samples, args.threshold)
+    train_data, train_label = build_data(train_samples)
+    test_data, test_label = build_data(test_samples)
 
     print(f">>>>{model_name}: train pcm classifier for pretrained embedding")
     model_ckpt_fp = os.path.join(save_dir, f"emb.ckpt")
@@ -120,8 +128,8 @@ if __name__ == '__main__':
 
     for k in range(model.encoder.transformer.num_layers + 1):
         # build dataset
-        train_data, train_label = build_data(train_samples, args.threshold)
-        test_data, test_label = build_data(test_samples, args.threshold)
+        train_data, train_label = build_data(train_samples)
+        test_data, test_label = build_data(test_samples)
 
         print(f">>>>{model_name} train pcm classifier for {k}th layer")
         

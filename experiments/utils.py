@@ -117,7 +117,7 @@ def forward_kth_translayer(model, emb, k):
 
 def lookup_embed(pro, embeder):
     aa_list = list(re.sub(r"[UZOB]", "X", pro.seq))
-    ids = torch.LongTensor([acids_vocab[a] for a in aa_list])
-    ids = ids.to(embeder.seq_embeder.weight.device)
-    embed = embeder(ids).detach().numpy()
+    ids = torch.LongTensor([acids_vocab[a] for a in aa_list]).unsqueeze(0)
+    ids = ids.to(embeder.aa_embeder.weight.device)
+    embed = embeder(ids).squeeze(0).detach().numpy()
     return embed 

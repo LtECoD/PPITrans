@@ -50,6 +50,10 @@ def build_data(proteins):
         for pro in proteins[orga]:
             datas.append(np.mean(pro.emb, axis=0))
             labels.append(organisms.index(orga))
+    
+    zipped = list(zip(datas, labels))
+    random.shuffle(zipped)
+    datas, labels = zip(*zipped)
     datas = np.vstack(datas)
     return datas, labels
 
@@ -59,7 +63,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--processed_dir", type=str, default='./data/dscript/processed')
     parser.add_argument("--self_dir", type=str, default="./experiments/5.organism_classify")
-    parser.add_argument("--num_per_orga", type=int, default=500)
+    parser.add_argument("--num_per_orga", type=int, default=2000)
     parser.add_argument("--model_dir", type=str, help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)   

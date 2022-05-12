@@ -9,5 +9,6 @@ save/hvidb/*
 save/dscript/*
 *.npy
 *.ckpt
+*.pkl
 @deprecated
 __pycache__/

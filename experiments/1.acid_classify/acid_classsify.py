@@ -115,7 +115,7 @@ if __name__ == '__main__':
             train_data, train_label = build_data(train_proteins[orga])
             test_data, test_label = build_data(test_proteins[orga])
 
-            print(f">>>> {model_name}-{orga}: train acid classifier for {k}th layer")
+            print(f">>>>{model_name}-{orga}: train acid classifier for {k}th layer")
             
             model_ckpt_fp = os.path.join(enc_mlp_save_dir, orga+".ckpt")
             if os.path.exists(model_ckpt_fp):
