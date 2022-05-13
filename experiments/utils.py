@@ -3,6 +3,7 @@ import torch
 import re
 
 from module.model import PPIModel
+from module.model import PIPRModel
 
 organisms = ['ecoli', 'mouse', 'fly', 'worm', 'yeast', 'human']
 standard_acids = [
@@ -97,6 +98,8 @@ def load_model(model_dir):
     # 加载模型
     if "ppi" in model_name:
         model_class = PPIModel
+    elif "pipr" in model_name:
+        model_class = PIPRModel
     else:
         raise NotImplementedError 
 

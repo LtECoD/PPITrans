@@ -115,7 +115,7 @@ if __name__ == '__main__':
             emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
             pro.set_emb(emb.detach().squeeze(0).numpy())
 
-    for k in range(model.encoder.transformer.num_layers + 1):
+    for k in range(model.encoder.num_layers + 1):
         train_data, train_label = build_data(train_proteins)
         test_data, test_label = build_data(test_proteins)
 
@@ -129,11 +129,11 @@ if __name__ == '__main__':
             joblib.dump(clf, model_ckpt_fp)
 
         kth_results = evaluate(clf, test_data, test_label) 
-        kth_result_fp = os.path.join(result_dir, f'{k}th.eval')
+        kth_result_fp = os.path.join(result_dir, f'{k}.eval')
         with open(kth_result_fp, "w") as f:
             f.writelines([f"{orga}\t{value}\n" for orga, value in kth_results.items()])
 
-        if k < model.encoder.transformer.num_layers:
+        if k < model.encoder.num_layers:
             for orga in organisms:
                 for pro in train_proteins[orga] + test_proteins[orga]:
                     pro.set_emb(forward_kth_translayer(model, pro.emb, k))

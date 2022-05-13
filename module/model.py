@@ -1,3 +1,4 @@
+from atexit import register
 from fairseq.models import register_model
 from fairseq.models import register_model_architecture
 from fairseq.models import BaseFairseqModel
@@ -49,6 +50,16 @@ class PPIModel(BaseModel):
         return cls(encoder, decoder)
 
 
+from module.encoder import PIPREncoder, FullPIPREncoder
+@register_model("pipr_model")
+class PIPRModel(BaseModel):
+    @classmethod
+    def build_model(cls, args, task):
+        encoder = FullPIPREncoder(args) if args.wo_ppm else PIPREncoder(args)
+        decoder = Decoder(args)
+        return cls(encoder, decoder)
+
+
 @register_model_architecture("naive_ppi_model", "naive_ppi")
 def naive_ppi_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)
@@ -57,5 +68,8 @@ def naive_ppi_architecture(args):
 @register_model_architecture("ppi_model", "ppi")
 def ppi_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)
-    args.fuse_out = getattr(args, "fuse_out", False)
 
+
+@register_model_architecture("pipr_model", "pipr")
+def pipr_architecture(args):
+    args.wo_ppm = getattr(args, 'wo_ppm', False)

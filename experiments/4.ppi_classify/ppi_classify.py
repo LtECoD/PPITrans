@@ -145,7 +145,7 @@ if __name__ == '__main__':
             semb = model.encoder.forward_projecter(torch.Tensor(spro.emb).unsqueeze(0))
             spro.set_emb(semb.detach().squeeze(0).numpy())
 
-    for k in range(model.encoder.transformer.num_layers + 1):
+    for k in range(model.encoder.num_layers + 1):
         enc_kth_results = {}
 
         # build dataset
@@ -163,7 +163,7 @@ if __name__ == '__main__':
             test_data, test_label = build_data(test_proteins[orga])
             enc_kth_results[orga] = evaluate(clf, test_data, test_label) 
 
-        if k < model.encoder.transformer.num_layers:
+        if k < model.encoder.num_layers:
             for (fpro, spro, _) in train_proteins:
                 fpro.set_emb(forward_kth_translayer(model, fpro.emb, k))
                 spro.set_emb(forward_kth_translayer(model, spro.emb, k))
