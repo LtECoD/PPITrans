@@ -9,7 +9,6 @@ from sklearn.metrics import f1_score
 from sklearn.neural_network import MLPClassifier
 
 import sys
-
 sys.path.append(".")
 from experiments.utils import Protein, organisms
 from experiments.utils import load_model
@@ -19,7 +18,6 @@ from experiments.utils import lookup_embed
 
 def evaluate(clf, data, label):
     """将测试集划分成5份，分别计算准确率"""
-    # 划分数据集成10份
     f1s = []
     num_per_split = int(len(data) / 5)
     for idx in range(0, len(data), num_per_split):
@@ -65,8 +63,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=99)
     parser.add_argument("--processed_dir", type=str, default='./data/dscript/processed')
-    parser.add_argument("--train_samples", type=int, default=5000)
-    parser.add_argument("--test_samples", type=int, default=2000)
+    parser.add_argument("--train_samples", type=int, default=2000)
+    parser.add_argument("--test_samples", type=int, default=500)
     parser.add_argument("--self_dir", type=str, default="./experiments/4.ppi_classify")
     parser.add_argument("--model_dir", type=str, help="saved ppi model")
     args = parser.parse_args()
@@ -129,7 +127,7 @@ if __name__ == '__main__':
         emb_results[orga] = evaluate(clf, test_data, test_label)
     emb_result_fp = os.path.join(results_dir, 'emb.eval')
     with open(emb_result_fp, "w") as f:
-        f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\t{value[3]}\n" for orga, value in emb_results.items()])
+        f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in emb_results.items()])
     
     # forward projecter
     for (fpro, spro, _) in train_proteins:
@@ -174,7 +172,7 @@ if __name__ == '__main__':
 
         enc_kth_result_fp = os.path.join(results_dir, f'{k}.eval')
         with open(enc_kth_result_fp, "w") as f:
-            f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\t{value[3]}\n" for orga, value in enc_kth_results.items()])
+            f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in enc_kth_results.items()])
 
     gold_results = {}
     for orga in organisms:

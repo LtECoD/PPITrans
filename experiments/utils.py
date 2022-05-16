@@ -3,7 +3,7 @@ import torch
 import re
 
 from module.model import PPIModel
-from module.model import PIPRModel
+from module.model import RNNModel
 
 organisms = ['ecoli', 'mouse', 'fly', 'worm', 'yeast', 'human']
 standard_acids = [
@@ -17,12 +17,17 @@ types = [acid_type[1] for acid_type in standard_acids]
 acids_vocab = {k[0]: idx+1 for idx, k in enumerate(standard_acids)}
 
 
+def window_vocab(window=1, ):
+    pass
+
+
 class Protein:
     def __init__(self, name, seq):
         self.name = name
-        self.seq = seq
-        self.pos_neighbors = []
-        self.neg_neighbors = []
+        if seq is not None:
+            self.seq = re.sub(r"[UZOB]", "X", seq)
+        else:
+            self.seq = None
         self.length = len(seq) if seq is not None else None
         self.ss = None      # secondary structure
         self.emb = None 
@@ -47,59 +52,18 @@ class Protein:
         """打散序列"""
         return list(self.seq), self.emb
 
-    def add_pos_neighbor(self, pro):
-        assert isinstance(pro, Protein)
-        self.pos_neighbors.append(pro)
-
-    def add_neg_neighbor(self, pro):
-        assert isinstance(pro, Protein)
-        self.neg_neighbors.append(pro)
-
     def __str__(self):
         _str = f"{self.name}\t{self.seq}\n"
-        _str = _str + f"{len(self.pos_neighbors)} interacted proteins:\n"
-        for nei in self.pos_neighbors:
-            _str = _str + f"\t{nei.name}\n"
-        _str = _str + f"{len(self.neg_neighbors)} uninteracted proteins:\n"
-        for nei in self.neg_neighbors:
-            _str = _str + f"\t{nei.name}\n"
         return _str
     
-
-def load_proteins(orga, _dir):
-    pairs = open(os.path.join(_dir, orga+".pair"), "r").readlines()
-    pairs = [p.strip().split() for p in pairs]
-
-    seqs = open(os.path.join(_dir, orga+".seq")).readlines()
-    seqs = dict([seq.strip().split() for seq in seqs])
-
-    proteins = {}
-
-    for (fst, sec, label) in pairs:
-        if fst in proteins:
-            pro = proteins[fst]
-        else:
-            pro = Protein(name=fst, seq=seqs[fst])
-        
-        nei_pro = Protein(name=sec, seq=seqs[sec])
-        if int(label) == 1:
-            pro.add_pos_neighbor(nei_pro)
-        elif int(label) == 0:
-            pro.add_neg_neighbor(nei_pro)
-        else:
-            raise NotImplementedError
-        proteins[fst] = pro
-    
-    return list(proteins.values())
-
 
 def load_model(model_dir):
     model_name = os.path.basename(model_dir)
     # 加载模型
     if "ppi" in model_name:
         model_class = PPIModel
-    elif "pipr" in model_name:
-        model_class = PIPRModel
+    elif "rnn" in model_name:
+        model_class = RNNModel
     else:
         raise NotImplementedError 
 
@@ -119,7 +83,7 @@ def forward_kth_translayer(model, emb, k):
 
 
 def lookup_embed(pro, embeder):
-    aa_list = list(re.sub(r"[UZOB]", "X", pro.seq))
+    aa_list = list(pro.seq)
     ids = torch.LongTensor([acids_vocab[a] for a in aa_list]).unsqueeze(0)
     ids = ids.to(embeder.aa_embeder.weight.device)
     embed = embeder(ids).squeeze(0).detach().numpy()

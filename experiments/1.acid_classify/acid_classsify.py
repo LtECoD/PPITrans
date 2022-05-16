@@ -5,18 +5,23 @@ import joblib
 import torch
 import numpy as np
 from statistics import stdev, mean
-from sklearn.metrics import f1_score
 from sklearn.neural_network import MLPClassifier
 
 import sys
-
-from yaml import load
 sys.path.append(".")
-from experiments.utils import load_proteins
-from experiments.utils import organisms, acids
+from experiments.utils import organisms, acids, Protein
 from experiments.utils import load_model
 from experiments.utils import forward_kth_translayer
 from experiments.utils import lookup_embed
+
+
+def load_proteins(_dir, split):
+    lines = open(os.path.join(_dir, split+".seq")).readlines()
+    proteins = []
+    for l in lines:
+        name, seq = l.strip().split()
+        proteins.append(Protein(name=name, seq=seq))
+    return proteins
 
 
 def evaluate(clf, data, label):
@@ -53,11 +58,12 @@ if __name__ == '__main__':
     
     protein_dir = os.path.join(args.self_dir, "data")
 
-    train_proteins = {}
+    train_proteins = load_proteins(os.path.join(protein_dir, "train"), "human_train")
+    print(f"train set size: {sum([p.length for p in train_proteins])}")
     test_proteins = {}
     for orga in organisms:
-        train_proteins[orga] = load_proteins(orga, os.path.join(protein_dir, "train"))
-        test_proteins[orga] = load_proteins(orga, os.path.join(protein_dir, "test"))
+        test_proteins[orga] = load_proteins(os.path.join(protein_dir, "test"), orga+"_test")
+        print(f"{orga} test set size size: {sum([p.length for p in test_proteins[orga]])}")
 
     model_name = os.path.basename(args.model_dir)
     save_dir = os.path.join(args.self_dir, 'save', model_name)
@@ -68,24 +74,54 @@ if __name__ == '__main__':
     # 加载模型
     model = load_model(args.model_dir)
 
-    ##### 测试pretrained-embedding
-    emb_mlp_save_dir = os.path.join(save_dir, 'embding')
-    os.makedirs(emb_mlp_save_dir, exist_ok=True)
-    emb_results = {}
-    for orga in organisms:
-        # load embedding
+    # load embedding
+    for pro in train_proteins:
         if not hasattr(model.encoder, "embeder"):
-            for pro in train_proteins[orga] + test_proteins[orga]:
+            pro.set_emb(np.load(os.path.join(args.pretrained_emb_dir, "human_train", pro.name+".npy")))
+        else:
+            pro.set_emb(lookup_embed(pro, model.encoder.embeder))
+    for orga in organisms:
+        if not hasattr(model.encoder, "embeder"):
+            for pro in test_proteins[orga]:
                 pro.set_emb(np.load(os.path.join(args.pretrained_emb_dir, orga+"_test", pro.name+".npy")))
         else:
-            for pro in train_proteins[orga] + test_proteins[orga]:
+            for pro in test_proteins[orga]:
                 pro.set_emb(lookup_embed(pro, model.encoder.embeder))
 
-        # build dataset
-        train_data, train_label = build_data(train_proteins[orga])
+    # test embedding
+    emb_results = {}
+    train_data, train_label = build_data(train_proteins)
+    print(f">>>>{model_name}: train acid classifier for pretrained embedding")
+    model_ckpt_fp = os.path.join(save_dir, "emb.ckpt")
+    if os.path.exists(model_ckpt_fp):
+        clf = joblib.load(model_ckpt_fp)
+    else:
+        clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        clf.fit(train_data, train_label)
+        joblib.dump(clf, model_ckpt_fp)
+
+    for orga in organisms:
         test_data, test_label = build_data(test_proteins[orga])
-        print(f">>>>{model_name}-{orga}: train acid classifier for pretrained embedding")
-        model_ckpt_fp = os.path.join(emb_mlp_save_dir, orga+".ckpt")
+        emb_results[orga] = evaluate(clf, test_data, test_label)
+    emb_result_fp = os.path.join(results_dir, 'emb.eval')
+    with open(emb_result_fp, "w") as f:
+        f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in emb_results.items()])
+
+    # forward projecter
+    for pro in train_proteins:
+        emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
+        pro.set_emb(emb.detach().squeeze(0).numpy())
+    for orga in organisms:
+        for pro in test_proteins[orga]:
+            emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
+            pro.set_emb(emb.detach().squeeze(0).numpy())
+
+    for k in range(model.encoder.num_layers + 1):
+        enc_kth_results = {}
+        train_data, train_label = build_data(train_proteins)
+        
+        print(f">>>>{model_name}: train acid classifier for {k}th layer")
+        model_ckpt_fp = os.path.join(save_dir, f"{k}.ckpt")
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
         else:
@@ -93,45 +129,19 @@ if __name__ == '__main__':
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
 
-        emb_results[orga] = evaluate(clf, test_data, test_label)
-    emb_result_fp = os.path.join(results_dir, 'emb.eval')
-    with open(emb_result_fp, "w") as f:
-        f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\t{value[3]}\n" for orga, value in emb_results.items()])
-
-    #### 测试ppi model
-    # forward projecter
-    for orga in organisms:
-        for pro in train_proteins[orga] + test_proteins[orga]:
-            emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
-            pro.set_emb(emb.detach().squeeze(0).numpy())
-
-    for k in range(model.encoder.transformer.num_layers + 1):
-        enc_mlp_save_dir = os.path.join(save_dir, str(k))
-        os.makedirs(enc_mlp_save_dir, exist_ok=True)
-        enc_kth_results = {}
-
         for orga in organisms:
             # build dataset
-            train_data, train_label = build_data(train_proteins[orga])
             test_data, test_label = build_data(test_proteins[orga])
-
-            print(f">>>>{model_name}-{orga}: train acid classifier for {k}th layer")
-            
-            model_ckpt_fp = os.path.join(enc_mlp_save_dir, orga+".ckpt")
-            if os.path.exists(model_ckpt_fp):
-                clf = joblib.load(model_ckpt_fp)
-            else:
-                clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
-                clf.fit(train_data, train_label)
-                joblib.dump(clf, model_ckpt_fp)
             enc_kth_results[orga] = evaluate(clf, test_data, test_label)
 
-            if k < model.encoder.transformer.num_layers:
-                for pro in train_proteins[orga] + test_proteins[orga]:
-                    pro.set_emb(forward_kth_translayer(model, pro.emb, k))
+        if k < model.encoder.num_layers:
+            for pro in train_proteins:
+                pro.set_emb(forward_kth_translayer(model, pro.emb, k))
+            for pro in test_proteins[orga]:
+                pro.set_emb(forward_kth_translayer(model, pro.emb, k))
 
         enc_kth_result_fp = os.path.join(results_dir, f'{k}.eval')
         with open(enc_kth_result_fp, "w") as f:
-            f.writelines([f"{orga}\t{value[0]}\t{value[1]}\t{value[2]}\t{value[3]}\n" for orga, value in enc_kth_results.items()])
+            f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in enc_kth_results.items()])
 
 

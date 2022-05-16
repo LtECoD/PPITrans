@@ -50,12 +50,12 @@ class PPIModel(BaseModel):
         return cls(encoder, decoder)
 
 
-from module.encoder import PIPREncoder, FullPIPREncoder
-@register_model("pipr_model")
-class PIPRModel(BaseModel):
+from module.encoder import RNNEncoder, FullRNNEncoder
+@register_model("rnn_model")
+class RNNModel(BaseModel):
     @classmethod
     def build_model(cls, args, task):
-        encoder = FullPIPREncoder(args) if args.wo_ppm else PIPREncoder(args)
+        encoder = FullRNNEncoder(args) if args.wo_ppm else RNNEncoder(args)
         decoder = Decoder(args)
         return cls(encoder, decoder)
 
@@ -70,6 +70,6 @@ def ppi_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)
 
 
-@register_model_architecture("pipr_model", "pipr")
+@register_model_architecture("rnn_model", "rnn")
 def pipr_architecture(args):
     args.wo_ppm = getattr(args, 'wo_ppm', False)

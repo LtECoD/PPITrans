@@ -84,6 +84,8 @@ if __name__ == '__main__':
 
     train_samples = load_samples('train', protein_dir)
     test_samples = load_samples('test', protein_dir)
+    print(f"train set size: {sum([inst.shape[0] for _, inst in train_samples])}")
+    print(f"test set size size: {sum([inst.shape[0] for _, inst in test_samples])}")
 
     # 加载模型
     model = load_model(args.model_dir)
@@ -120,7 +122,7 @@ if __name__ == '__main__':
         emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
         pro.set_emb(emb.detach().squeeze(0).numpy())
 
-    for k in range(model.encoder.transformer.num_layers + 1):
+    for k in range(model.encoder.num_layers + 1):
         # build dataset
         train_data, train_label = build_data(train_samples)
         test_data, test_label = build_data(test_samples)
@@ -135,7 +137,7 @@ if __name__ == '__main__':
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)
 
-        if k < model.encoder.transformer.num_layers:
+        if k < model.encoder.num_layers:
             for pro, _ in train_samples + test_samples:
                 pro.set_emb(forward_kth_translayer(model, pro.emb, k))
 

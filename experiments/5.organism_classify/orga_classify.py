@@ -15,6 +15,15 @@ from experiments.utils import organisms, Protein
 from experiments.utils import lookup_embed
 
 
+def load_proteins(_dir, split):
+    lines = open(os.path.join(_dir, split+".seq")).readlines()
+    proteins = []
+    for l in lines:
+        name, seq = l.strip().split()
+        proteins.append(Protein(name=name, seq=seq))
+    return proteins
+
+
 def evaluate(clf, data, label):
     """将测试集划分成5份，分别计算准确率"""
     # 划分数据集成10份
@@ -25,22 +34,6 @@ def evaluate(clf, data, label):
     for idx, f1 in enumerate(f1s):
         results[organisms[idx]] = f1
     return results
-
-
-def load_proteins(data_dir, orga, k):
-
-    seq_fp = os.path.join(data_dir, "seqs", orga+"_test.fasta")
-    with open(seq_fp, "r") as f:
-        seqs_dict = dict([line.strip().split("\t") for line in f.readlines()])   
-
-    pros = list(seqs_dict.keys())
-    selected_pros = random.sample(pros, k=k)
-
-    pros = []
-    for name in selected_pros:
-        pp = Protein(name=name, seq=seqs_dict[name])
-        pros.append(pp)
-    return pros
 
 
 def build_data(proteins):
@@ -61,18 +54,21 @@ def build_data(proteins):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=99)
-    parser.add_argument("--processed_dir", type=str, default='./data/dscript/processed')
+    parser.add_argument("--pretrained_emb_dir", type=str, default='./data/dscript/processed/embs')
     parser.add_argument("--self_dir", type=str, default="./experiments/5.organism_classify")
-    parser.add_argument("--num_per_orga", type=int, default=2000)
     parser.add_argument("--model_dir", type=str, help="saved ppi model")
     args = parser.parse_args()
     random.seed(args.seed)   
+    
+    protein_dir = os.path.join(args.self_dir, "data")
 
     train_proteins = {}
     test_proteins = {}
     for orga in organisms:
-        train_proteins[orga] = load_proteins(args.processed_dir, orga, args.num_per_orga)
-        test_proteins[orga] = load_proteins(args.processed_dir, orga, args.num_per_orga)
+        train_proteins[orga] = load_proteins(os.path.join(protein_dir, "train"), orga)
+        test_proteins[orga] = load_proteins(os.path.join(protein_dir, "test"), orga)
+        print(f"{orga} train set size: {len(train_proteins[orga])}")
+        print(f"{orga} test set size size: {len(test_proteins[orga])}")
 
     model_name = os.path.basename(args.model_dir)
     save_dir = os.path.join(args.self_dir, 'save', model_name)
@@ -85,13 +81,12 @@ if __name__ == '__main__':
         # load embedding
         if not hasattr(model.encoder, "embeder"):
             for pro in train_proteins[orga] + test_proteins[orga]:
-                pro.set_emb(np.load(os.path.join(args.processed_dir, "embs", orga+"_test", pro.name+".npy")))
+                pro.set_emb(np.load(os.path.join(args.pretrained_emb_dir, orga+"_test", pro.name+".npy")))
         else:
             for pro in train_proteins[orga] + test_proteins[orga]:
                 pro.set_emb(lookup_embed(pro, model.encoder.embeder))
 
     ##### 测试pretrained-embedding
-    # build dataset
     train_data, train_label = build_data(train_proteins)
     test_data, test_label = build_data(test_proteins)
 

@@ -85,6 +85,8 @@ if __name__ == '__main__':
 
     train_samples = load_samples('train', protein_dir)
     test_samples = load_samples('test', protein_dir)
+    print(f"train set size: {sum([inst.shape[0] for _, _, inst in train_samples])}")
+    print(f"test set size size: {sum([inst.shape[0] for _, _, inst in test_samples])}")
 
     # 加载模型
     model = load_model(args.model_dir)
@@ -126,7 +128,7 @@ if __name__ == '__main__':
         spro.set_emb(semb.detach().squeeze(0).numpy())
     
 
-    for k in range(model.encoder.transformer.num_layers + 1):
+    for k in range(model.encoder.num_layers + 1):
         # build dataset
         train_data, train_label = build_data(train_samples)
         test_data, test_label = build_data(test_samples)
@@ -142,7 +144,7 @@ if __name__ == '__main__':
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)
 
-        if k < model.encoder.transformer.num_layers:
+        if k < model.encoder.num_layers:
             for (fpro, spro, _) in train_samples + test_samples:
                 fpro.set_emb(forward_kth_translayer(model, fpro.emb, k))
                 spro.set_emb(forward_kth_translayer(model, spro.emb, k))

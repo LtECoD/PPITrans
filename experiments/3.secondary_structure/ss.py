@@ -5,12 +5,10 @@ import joblib
 import torch
 import numpy as np
 from statistics import stdev, mean
-from sklearn.metrics import f1_score
 from sklearn.neural_network import MLPClassifier
 
 import sys
 sys.path.append(".")
-from module.model import PPIModel
 from experiments.utils import Protein, load_model
 from experiments.utils import forward_kth_translayer
 from experiments.utils import lookup_embed
@@ -72,6 +70,10 @@ if __name__ == '__main__':
     train_proteins = load_proteins('train', protein_dir)
     test_proteins = load_proteins('test', protein_dir)
 
+    print(f"train set size: {sum([p.length for p in train_proteins])}")
+    print(f"test set size size: {sum([p.length for p in test_proteins])}")
+
+
     model_name = os.path.basename(args.model_dir)
     save_dir = os.path.join(args.self_dir, 'save', model_name)
     os.makedirs(save_dir, exist_ok=True)
@@ -115,7 +117,7 @@ if __name__ == '__main__':
         emb = model.encoder.forward_projecter(torch.Tensor(pro.emb).unsqueeze(0))
         pro.set_emb(emb.detach().squeeze(0).numpy())
 
-    for k in range(model.encoder.transformer.num_layers + 1):
+    for k in range(model.encoder.num_layers + 1):
         # build dataset
         train_data, train_label = build_data(train_proteins, args.is_eight_class)
         test_data, test_label = build_data(test_proteins, args.is_eight_class)
@@ -130,7 +132,7 @@ if __name__ == '__main__':
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)
 
-        if k < model.encoder.transformer.num_layers:
+        if k < model.encoder.num_layers:
             for pro in train_proteins + test_proteins:
                 pro.set_emb(forward_kth_translayer(model, pro.emb, k))
 
