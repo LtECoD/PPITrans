@@ -5,9 +5,11 @@ import joblib
 import torch
 import pickle
 import numpy as np
+from math import ceil
 from statistics import stdev, mean
 from sklearn.metrics import f1_score
-from sklearn.neural_network import MLPClassifier
+# from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier as CLF
 
 import sys
 sys.path.append(".")
@@ -43,19 +45,17 @@ def build_data(samples):
         data.append(_data)
         label.append(_label)
 
-    zipped = list(zip(data, label))
-    random.shuffle(zipped)
-    data, label = zip(*zipped)
-
     data = np.vstack(data)
     label = np.hstack(label)
 
-    return data, label
+    order = np.arange(len(data))
+    np.random.shuffle(order)
+    return data[order], label[order]
 
 
 def evaluate(clf, data, label):
     f1s = []
-    num_per_split = int(len(data) / 5)
+    num_per_split = ceil(len(data) / 5)
     for idx in range(0, len(data), num_per_split):
         data_split = data[idx: idx+num_per_split]
         label_split = label[idx: idx+num_per_split]
@@ -82,14 +82,13 @@ if __name__ == '__main__':
     results_dir = os.path.join(args.self_dir, 'results', model_name)
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
+    # 加载模型
+    model = load_model(args.model_dir)
 
     train_samples = load_samples('train', protein_dir)
     test_samples = load_samples('test', protein_dir)
     print(f"train set size: {sum([inst.shape[0] for _, _, inst in train_samples])}")
     print(f"test set size size: {sum([inst.shape[0] for _, _, inst in test_samples])}")
-
-    # 加载模型
-    model = load_model(args.model_dir)
 
     ##### 测试pretrained-embedding    
     emb_results = {}
@@ -111,7 +110,8 @@ if __name__ == '__main__':
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
     else:
-        clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        clf = CLF()
         clf.fit(train_data, train_label)
         joblib.dump(clf, model_ckpt_fp)
 
@@ -139,7 +139,8 @@ if __name__ == '__main__':
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
         else:
-            clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            clf = CLF()
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)

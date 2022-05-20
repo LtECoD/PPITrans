@@ -4,8 +4,10 @@ import random
 import joblib
 import torch
 import numpy as np
+from math import ceil
 from statistics import stdev, mean
-from sklearn.neural_network import MLPClassifier
+# from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier as CLF
 
 import sys
 sys.path.append(".")
@@ -22,7 +24,7 @@ def evaluate(clf, data, label):
     """将测试集划分成10份，分别计算准确率"""
     # 划分数据集成10份
     accs = []
-    num_per_split = int(len(data) / 10)
+    num_per_split = ceil(len(data) / 5)
     for idx in range(0, len(data), num_per_split):
         data_split = data[idx: idx+num_per_split]
         label_split = label[idx: idx+num_per_split]
@@ -48,10 +50,13 @@ def build_data(proteins, is_eight_class=False):
     data = np.vstack([pro.emb for pro in proteins])
     label = list("".join([pro.ss for pro in proteins]))
     if is_eight_class:
-        label = [SS8_Dict[l] for l in label]
+        label = np.array([SS8_Dict[l] for l in label])
     else:
-        label = [SS3_Dict[l] for l in label]
-    return data, label
+        label = np.array([SS3_Dict[l] for l in label])
+    
+    order = np.arange(len(data))
+    np.random.shuffle(order)
+    return data[order], label[order]
 
 
 if __name__ == '__main__':
@@ -66,14 +71,6 @@ if __name__ == '__main__':
     protein_dir = os.path.join(args.self_dir, "data")
     pretrained_emb_dir = os.path.join(protein_dir, "embs")
 
-    class_num = 8 if args.is_eight_class else 3
-    train_proteins = load_proteins('train', protein_dir)
-    test_proteins = load_proteins('test', protein_dir)
-
-    print(f"train set size: {sum([p.length for p in train_proteins])}")
-    print(f"test set size size: {sum([p.length for p in test_proteins])}")
-
-
     model_name = os.path.basename(args.model_dir)
     save_dir = os.path.join(args.self_dir, 'save', model_name)
     os.makedirs(save_dir, exist_ok=True)
@@ -82,6 +79,13 @@ if __name__ == '__main__':
 
     # 加载模型
     model = load_model(args.model_dir)
+
+    class_num = 8 if args.is_eight_class else 3
+    train_proteins = load_proteins('train', protein_dir)
+    test_proteins = load_proteins('test', protein_dir)
+
+    print(f"train set size: {len(train_proteins)} proteins, {sum([p.length for p in train_proteins])} aa")
+    print(f"test set size size: {len(test_proteins)} proteins, {sum([p.length for p in test_proteins])} aa")
 
     ##### 测试pretrained-embedding
     emb_results = {}
@@ -102,7 +106,8 @@ if __name__ == '__main__':
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
     else:
-        clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        clf = CLF()
         clf.fit(train_data, train_label)
         joblib.dump(clf, model_ckpt_fp)
 
@@ -127,7 +132,8 @@ if __name__ == '__main__':
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
         else:
-            clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            clf = CLF()
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)

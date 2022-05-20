@@ -4,8 +4,11 @@ import random
 import joblib
 import torch
 import numpy as np
+from math import ceil
+from statistics import stdev, mean
+from collections import defaultdict
 from sklearn.metrics import f1_score
-from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier as CLF
 
 import sys
 sys.path.append(".")
@@ -26,13 +29,21 @@ def load_proteins(_dir, split):
 
 def evaluate(clf, data, label):
     """将测试集划分成5份，分别计算准确率"""
-    # 划分数据集成10份
-    pred = clf.predict(data)
-    assert len(pred) == len(data)
-    f1s = f1_score(y_true=label, y_pred=pred, zero_division=0, average=None)    
-    results = {}
-    for idx, f1 in enumerate(f1s):
-        results[organisms[idx]] = f1
+
+    results = defaultdict(list)
+    num_per_split = ceil(len(data) / 5) 
+    for idx in range(0, len(data), num_per_split):
+        data_split = data[idx: idx+num_per_split]
+        label_split = label[idx: idx+num_per_split]
+        pred = clf.predict(data_split)
+        assert len(pred) == len(label_split)
+        split_f1s = f1_score(y_true=label_split, y_pred=pred, zero_division=0, average=None)    
+        for idx, f1 in enumerate(split_f1s):
+            results[organisms[idx]].append(f1)
+    for orga in results:
+        f1s = results[orga]
+        results[orga] = (mean(f1s), stdev(f1s), min(f1s), max(f1s))
+
     return results
 
 
@@ -43,12 +54,12 @@ def build_data(proteins):
         for pro in proteins[orga]:
             datas.append(np.mean(pro.emb, axis=0))
             labels.append(organisms.index(orga))
-    
-    zipped = list(zip(datas, labels))
-    random.shuffle(zipped)
-    datas, labels = zip(*zipped)
     datas = np.vstack(datas)
-    return datas, labels
+    labels = np.array(labels)
+
+    order = np.arange(len(datas))
+    np.random.shuffle(order)
+    return datas[order], labels[order]
 
 
 if __name__ == '__main__':
@@ -95,14 +106,15 @@ if __name__ == '__main__':
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
     else:
-        clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        clf = CLF()
         clf.fit(train_data, train_label)
         joblib.dump(clf, model_ckpt_fp)
 
     emb_results = evaluate(clf, test_data, test_label) 
     emb_result_fp = os.path.join(result_dir, 'emb.eval')
     with open(emb_result_fp, "w") as f:
-        f.writelines([f"{orga}\t{value}\n" for orga, value in emb_results.items()])
+        f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in emb_results.items()])
 
     # forward projecter
     for orga in organisms:
@@ -119,14 +131,15 @@ if __name__ == '__main__':
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
         else:
-            clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            clf = CLF()
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
 
         kth_results = evaluate(clf, test_data, test_label) 
         kth_result_fp = os.path.join(result_dir, f'{k}.eval')
         with open(kth_result_fp, "w") as f:
-            f.writelines([f"{orga}\t{value}\n" for orga, value in kth_results.items()])
+            f.writelines([f"{orga}\t" + '\t'.join(list(map(str, value))) + "\n" for orga, value in kth_results.items()])
 
         if k < model.encoder.num_layers:
             for orga in organisms:

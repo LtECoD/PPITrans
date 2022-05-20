@@ -5,9 +5,11 @@ import joblib
 import torch
 import pickle
 import numpy as np
+from math import ceil
 from statistics import stdev, mean
 from sklearn.metrics import f1_score
-from sklearn.neural_network import MLPClassifier
+# from sklearn.neural_network import MLPClassifier as CLF
+from sklearn.neighbors import KNeighborsClassifier as CLF
 
 import sys
 sys.path.append(".")
@@ -42,19 +44,17 @@ def build_data(proteins):
         data.append(_data)
         label.append(_label)
 
-    zipped = list(zip(data, label))
-    random.shuffle(zipped)
-    data, label = zip(*zipped)
-
     data = np.vstack(data)
     label = np.hstack(label)
 
-    return data, label
+    order = np.arange(len(data))
+    np.random.shuffle(order)
+    return data[order], label[order]
 
 
 def evaluate(clf, data, label):
     f1s = []
-    num_per_split = int(len(data) / 5)
+    num_per_split = ceil(len(data) / 5)
     for idx in range(0, len(data), num_per_split):
         data_split = data[idx: idx+num_per_split]
         label_split = label[idx: idx+num_per_split]
@@ -108,7 +108,8 @@ if __name__ == '__main__':
     if os.path.exists(model_ckpt_fp):
         clf = joblib.load(model_ckpt_fp)
     else:
-        clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+        clf = CLF()
         clf.fit(train_data, train_label)
         joblib.dump(clf, model_ckpt_fp)
 
@@ -132,7 +133,8 @@ if __name__ == '__main__':
         if os.path.exists(model_ckpt_fp):
             clf = joblib.load(model_ckpt_fp)
         else:
-            clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            # clf = MLPClassifier(hidden_layer_sizes=(256, 128), random_state=1)
+            clf = CLF()
             clf.fit(train_data, train_label)
             joblib.dump(clf, model_ckpt_fp)
         enc_kth_results = evaluate(clf, test_data, test_label)

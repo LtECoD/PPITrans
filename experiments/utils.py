@@ -1,6 +1,9 @@
 import os
 import torch
 import re
+import itertools
+import numpy as np
+from typing import Counter
 
 from module.model import PPIModel
 from module.model import RNNModel
@@ -17,8 +20,20 @@ types = [acid_type[1] for acid_type in standard_acids]
 acids_vocab = {k[0]: idx+1 for idx, k in enumerate(standard_acids)}
 
 
-def window_vocab(window=1, ):
-    pass
+def build_window_vocab(keep_order=True, including_center=False):
+    """windows size is 3"""
+    iter_num = 3 if including_center else 2
+    vocab = ["".join(w) for w in itertools.product(acids, repeat=iter_num)]
+    start_vocab = ["^"+"".join(w) for w in list(itertools.product(acids, repeat=iter_num-1))]
+    end_vocab = ["".join(w)+"&" for w in list(itertools.product(acids, repeat=iter_num-1))]
+    vocab = start_vocab + vocab + end_vocab
+
+    if not keep_order:
+        vocab = set(["".join(sorted(list(w))) for w in vocab])
+        vocab = list(vocab)
+
+    vocab = dict(zip(vocab, list(range(len(vocab)))))
+    return vocab
 
 
 class Protein:
@@ -32,6 +47,14 @@ class Protein:
         self.ss = None      # secondary structure
         self.emb = None 
         self.cm = None      # contact map
+
+    def count_aa(self):
+        counter = Counter(list(self.seq))
+        counts = [0] * len(acids)
+        for aa, value in counter.items():
+            counts[acids.index(aa)] = value
+        assert sum(counts) == self.length
+        self.aa_freq = np.array([v/self.length for v in counts])
 
     def set_ss(self, ss):
         assert len(ss) == len(self.seq)
@@ -71,14 +94,16 @@ def load_model(model_dir):
     args = state_dict["args"]
     model = model_class.build_model(args, None)
     model.load_state_dict(state_dict["model"])
+    model.eval()
     print(model)
     return model
 
 
 def forward_kth_translayer(model, emb, k):
     length = torch.LongTensor([len(emb)])
-    emb = torch.Tensor(emb).unsqueeze(0)           # 1 x L x D
-    enc, _ = model.encoder.forward_kth_translayer(emb, length, k)
+    with torch.no_grad():
+        emb = torch.Tensor(emb).unsqueeze(0)           # 1 x L x D
+        enc, _ = model.encoder.forward_kth_translayer(emb, length, k)
     return enc.squeeze(0).detach().numpy()
 
 
