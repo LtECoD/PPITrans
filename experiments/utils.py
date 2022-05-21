@@ -76,9 +76,12 @@ class Protein:
         return list(self.seq), self.emb
 
     def __str__(self):
-        _str = f"{self.name}\t{self.seq}\n"
+        _str = f"{self.name}\t{self.seq}"
         return _str
     
+    def __len__(self):
+        return self.length
+
 
 def load_model(model_dir):
     model_name = os.path.basename(model_dir)
@@ -105,6 +108,20 @@ def forward_kth_translayer(model, emb, k):
         emb = torch.Tensor(emb).unsqueeze(0)           # 1 x L x D
         enc, _ = model.encoder.forward_kth_translayer(emb, length, k)
     return enc.squeeze(0).detach().numpy()
+
+
+def forward_decoder_proj(model, emb):
+    """
+    femb: B x D
+    """
+    with torch.no_grad():
+        emb = torch.Tensor(emb)
+        if emb.ndim == 1:
+            logits = model.decoder.projector(emb.unsqueeze(0))
+            logits = logits.squeeze(0)
+        else:
+            logits = model.decoder.projector(emb)
+    return logits.numpy()
 
 
 def lookup_embed(pro, embeder):
