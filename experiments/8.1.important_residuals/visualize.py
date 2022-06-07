@@ -126,8 +126,10 @@ if __name__ == '__main__':
         element_cm = element_logits_gap >= gap_threshold
         neg_cms.append(element_cm)
 
+    pnames = [p.name for p in pos_pros]
+    nnames = [p.name for p in neg_pros]
     with open(os.path.join(args.self_dir, "tmpdata", f"{pro.name}.pkl"), "wb") as f:
-            pickle.dump([pro.name, pos_cms, neg_cms, pos_probs, neg_probs], f)
+            pickle.dump([pro.name, pos_cms, neg_cms, pos_probs, neg_probs, pnames, nnames], f)
 
 
     # fig, subs = plt.subplots(nrows=2, ncols=args.k, figsize=(15, 5))
