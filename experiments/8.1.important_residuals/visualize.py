@@ -127,7 +127,7 @@ if __name__ == '__main__':
         neg_cms.append(element_cm)
 
     with open(os.path.join(args.self_dir, "tmpdata", f"{pro.name}.pkl"), "wb") as f:
-            pickle.dump([pro.name, pos_cms, neg_cms, pos_probs, neg_probs])
+            pickle.dump([pro.name, pos_cms, neg_cms, pos_probs, neg_probs], f)
 
 
     # fig, subs = plt.subplots(nrows=2, ncols=args.k, figsize=(15, 5))

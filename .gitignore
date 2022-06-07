@@ -13,3 +13,4 @@ backup/
 *.pkl
 @deprecated
 __pycache__/
+!tmpdata/*

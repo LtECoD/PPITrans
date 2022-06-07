@@ -112,7 +112,7 @@ if __name__ == '__main__':
         # subs[1][idx].set_yticks([])
 
         with open(os.path.join(args.self_dir, "tmpdata", f"{fpro.name}-{spro.name}.pkl"), "wb") as f:
-            pickle.dump([probs[1], element_cm, cm<args.threshold])
+            pickle.dump([probs[1], element_cm, cm<args.threshold], f)
 
         idx += 1
         if idx >= args.k:
