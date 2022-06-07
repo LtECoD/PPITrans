@@ -99,21 +99,24 @@ if __name__ == '__main__':
         gap_threshold = np.partition(element_logits_gap.reshape(-1), -len(sites))[-len(sites)]
         element_cm = element_logits_gap >= gap_threshold
 
-        subs[0][idx].imshow(element_cm, cmap="Blues")
-        subs[0][idx].set_title(f"P={round(float(probs[1]), 3)}")
-        subs[0][idx].set_ylabel(fpro.name)
-        subs[0][idx].set_xticks([])
-        subs[0][idx].set_yticks([])
+        # subs[0][idx].imshow(element_cm, cmap="Blues")
+        # subs[0][idx].set_title(f"P={round(float(probs[1]), 3)}")
+        # subs[0][idx].set_ylabel(fpro.name)
+        # subs[0][idx].set_xticks([])
+        # subs[0][idx].set_yticks([])
 
-        subs[1][idx].imshow(cm<args.threshold, cmap="Blues")
-        subs[1][idx].set_ylabel(fpro.name)
-        subs[1][idx].set_xlabel(spro.name)
-        subs[1][idx].set_xticks([])
-        subs[1][idx].set_yticks([])
+        # subs[1][idx].imshow(cm<args.threshold, cmap="Blues")
+        # subs[1][idx].set_ylabel(fpro.name)
+        # subs[1][idx].set_xlabel(spro.name)
+        # subs[1][idx].set_xticks([])
+        # subs[1][idx].set_yticks([])
+
+        with open(os.path.join(args.self_dir, "tmpdata", f"{fpro.name}-{spro.name}.pkl"), "wb") as f:
+            pickle.dump([probs[1], element_cm, cm<args.threshold])
 
         idx += 1
         if idx >= args.k:
             break
 
-    plt.savefig(os.path.join(args.self_dir, f"cm_compare.pdf"))
+    # plt.savefig(os.path.join(args.self_dir, f"cm_compare.pdf"))
 

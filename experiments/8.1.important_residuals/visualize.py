@@ -126,15 +126,19 @@ if __name__ == '__main__':
         element_cm = element_logits_gap >= gap_threshold
         neg_cms.append(element_cm)
 
-    fig, subs = plt.subplots(nrows=2, ncols=args.k, figsize=(15, 5))
-    plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.7)
-    for idx, p in enumerate(pos_pros):
-        subs[0][idx].imshow(pos_cms[idx], cmap="Blues")
-        subs[0][idx].set_xlabel(p.name)
-        subs[0][idx].set_title(f"P={round(float(pos_probs[idx][1]), 3)}")
-    for idx, p in enumerate(neg_pros):
-        subs[1][idx].imshow(neg_cms[idx], cmap="BuGn")
-        subs[1][idx].set_xlabel(p.name)
-        subs[1][idx].set_title(f"P={round(float(neg_probs[idx][1]), 3)}")
+    with open(os.path.join(args.self_dir, "tmpdata", f"{pro.name}.pkl"), "wb") as f:
+            pickle.dump([pro.name, pos_cms, neg_cms, pos_probs, neg_probs])
 
-    plt.savefig(os.path.join(args.self_dir, f"{pro.name}-importance.pdf"))
+
+    # fig, subs = plt.subplots(nrows=2, ncols=args.k, figsize=(15, 5))
+    # plt.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.7)
+    # for idx, p in enumerate(pos_pros):
+    #     subs[0][idx].imshow(pos_cms[idx], cmap="Blues")
+    #     subs[0][idx].set_xlabel(p.name)
+    #     subs[0][idx].set_title(f"P={round(float(pos_probs[idx][1]), 3)}")
+    # for idx, p in enumerate(neg_pros):
+    #     subs[1][idx].imshow(neg_cms[idx], cmap="BuGn")
+    #     subs[1][idx].set_xlabel(p.name)
+    #     subs[1][idx].set_title(f"P={round(float(neg_probs[idx][1]), 3)}")
+
+    # plt.savefig(os.path.join(args.self_dir, f"{pro.name}-importance.pdf"))
