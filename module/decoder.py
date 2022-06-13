@@ -1,5 +1,3 @@
-from sklearn.feature_selection import SelectPercentile
-import torch
 import torch.nn as nn
 from fairseq.models import BaseFairseqModel
 

@@ -1,4 +1,3 @@
-from atexit import register
 from fairseq.models import register_model
 from fairseq.models import register_model_architecture
 from fairseq.models import BaseFairseqModel

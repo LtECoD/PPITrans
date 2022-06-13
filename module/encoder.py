@@ -1,8 +1,6 @@
-from functools import total_ordering
 import torch
 import torch.nn as nn
 from fairseq.models import BaseFairseqModel
-from zmq import has
 
 from module.utils import get_padding_mask
 
